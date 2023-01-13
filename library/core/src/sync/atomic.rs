@@ -1825,7 +1825,14 @@ macro_rules! if_not_8_bit {
     ($_:ident, $($tt:tt)*) => { $($tt)* };
 }
 
-#[cfg(target_has_atomic_load_store = "8")]
+#[cfg(any(
+    target_has_atomic_load_store = "8",
+    target_has_atomic_load_store = "16",
+    target_has_atomic_load_store = "32",
+    target_has_atomic_load_store = "64",
+    target_has_atomic_load_store = "128",
+    target_has_atomic_load_store = "ptr"
+))]
 macro_rules! atomic_int {
     ($cfg_cas:meta,
      $cfg_align:meta,
@@ -2717,7 +2724,14 @@ atomic_int! {
     "AtomicI8::new(0)",
     i8 AtomicI8 ATOMIC_I8_INIT
 }
-#[cfg(target_has_atomic_load_store = "8")]
+#[cfg(any(
+    target_has_atomic_load_store = "8",
+    target_has_atomic_load_store = "16",
+    target_has_atomic_load_store = "32",
+    target_has_atomic_load_store = "64",
+    target_has_atomic_load_store = "128",
+    target_has_atomic_load_store = "ptr"
+))]
 atomic_int! {
     cfg(target_has_atomic = "8"),
     cfg(target_has_atomic_equal_alignment = "8"),
@@ -2952,7 +2966,14 @@ atomic_int_ptr_sized! {
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 fn strongest_failure_ordering(order: Ordering) -> Ordering {
     match order {
         Release => Relaxed,
@@ -2994,7 +3015,14 @@ unsafe fn atomic_load<T: Copy>(dst: *const T, order: Ordering) -> T {
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_swap<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_swap`.
@@ -3011,7 +3039,14 @@ unsafe fn atomic_swap<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 
 /// Returns the previous value (like __sync_fetch_and_add).
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_add<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_add`.
@@ -3028,7 +3063,14 @@ unsafe fn atomic_add<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 
 /// Returns the previous value (like __sync_fetch_and_sub).
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_sub<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_sub`.
@@ -3044,7 +3086,14 @@ unsafe fn atomic_sub<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_compare_exchange<T: Copy>(
     dst: *mut T,
@@ -3075,11 +3124,22 @@ unsafe fn atomic_compare_exchange<T: Copy>(
             (_, Release) => panic!("there is no such thing as a release failure ordering"),
         }
     };
-    if ok { Ok(val) } else { Err(val) }
+    if ok {
+        Ok(val)
+    } else {
+        Err(val)
+    }
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_compare_exchange_weak<T: Copy>(
     dst: *mut T,
@@ -3110,11 +3170,22 @@ unsafe fn atomic_compare_exchange_weak<T: Copy>(
             (_, Release) => panic!("there is no such thing as a release failure ordering"),
         }
     };
-    if ok { Ok(val) } else { Err(val) }
+    if ok {
+        Ok(val)
+    } else {
+        Err(val)
+    }
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_and<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_and`
@@ -3130,7 +3201,15 @@ unsafe fn atomic_and<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+// FIXME: Should be disabled for BPF
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_nand<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_nand`
@@ -3146,7 +3225,14 @@ unsafe fn atomic_nand<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_or<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_or`
@@ -3162,7 +3248,14 @@ unsafe fn atomic_or<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 }
 
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_xor<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_xor`
@@ -3179,7 +3272,14 @@ unsafe fn atomic_xor<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 
 /// returns the max value (signed comparison)
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_max<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_max`
@@ -3196,7 +3296,14 @@ unsafe fn atomic_max<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 
 /// returns the min value (signed comparison)
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_min<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_min`
@@ -3213,7 +3320,14 @@ unsafe fn atomic_min<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 
 /// returns the max value (unsigned comparison)
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_umax<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_umax`
@@ -3230,7 +3344,14 @@ unsafe fn atomic_umax<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
 
 /// returns the min value (unsigned comparison)
 #[inline]
-#[cfg(target_has_atomic = "8")]
+#[cfg(any(
+    target_has_atomic = "8",
+    target_has_atomic = "16",
+    target_has_atomic = "32",
+    target_has_atomic = "64",
+    target_has_atomic = "128",
+    target_has_atomic = "ptr"
+))]
 #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
 unsafe fn atomic_umin<T: Copy>(dst: *mut T, val: T, order: Ordering) -> T {
     // SAFETY: the caller must uphold the safety contract for `atomic_umin`
