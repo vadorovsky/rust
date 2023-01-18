@@ -965,7 +965,7 @@ fn default_configuration(sess: &Session) -> CrateConfig {
             }
         }
     }
-    if has_atomic {
+    if sess.opts.unstable_features.is_nightly_build() && has_atomic {
         ret.insert((sym::target_has_atomic_load_store, None));
         if atomic_cas {
             ret.insert((sym::target_has_atomic, None));
