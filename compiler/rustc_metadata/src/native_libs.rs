@@ -15,6 +15,7 @@ use rustc_target::spec::abi::Abi;
 
 use crate::errors;
 
+use std::backtrace::Backtrace;
 use std::path::PathBuf;
 
 pub fn find_native_static_library(
@@ -23,6 +24,7 @@ pub fn find_native_static_library(
     search_paths: &[PathBuf],
     sess: &Session,
 ) -> PathBuf {
+    eprintln!("backtrace: {:?}", Backtrace::force_capture());
     let formats = if verbatim {
         vec![("".into(), "".into())]
     } else {
@@ -30,12 +32,19 @@ pub fn find_native_static_library(
         // On Windows, static libraries sometimes show up as libfoo.a and other
         // times show up as foo.lib
         let unix = ("lib".into(), ".a".into());
-        if os == unix { vec![os] } else { vec![os, unix] }
+        if os == unix {
+            vec![os]
+        } else {
+            vec![os, unix]
+        }
     };
 
+    // HERE
     for path in search_paths {
+        eprintln!("path: {:?}", path);
         for (prefix, suffix) in &formats {
             let test = path.join(format!("{prefix}{name}{suffix}"));
+            eprintln!("full path: {:?}", test);
             if test.exists() {
                 return test;
             }
