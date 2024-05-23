@@ -1939,6 +1939,18 @@ LLVMRustBuildMaxNum(LLVMBuilderRef B, LLVMValueRef LHS, LLVMValueRef RHS) {
     return wrap(unwrap(B)->CreateMaxNum(unwrap(LHS),unwrap(RHS)));
 }
 
+extern "C" LLVMValueRef
+LLVMRustBuildPreserveStructAccessIndex(
+    LLVMBuilderRef B,
+    LLVMTypeRef ElTy,
+    LLVMValueRef Base,
+    unsigned Index,
+    unsigned FieldIndex,
+    LLVMMetadataRef DbgInfo) {
+  return wrap(unwrap(B)->CreatePreserveStructAccessIndex(
+    unwrap(ElTy), unwrap(Base), Index, FieldIndex, unwrapDIPtr<MDNode>(DbgInfo)));
+}
+
 // This struct contains all necessary info about a symbol exported from a DLL.
 struct LLVMRustCOFFShortExport {
   const char* name;

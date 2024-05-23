@@ -386,8 +386,10 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                             let val = bx.from_immediate(val);
                             let success = bx.from_immediate(success);
 
+                            info!("codegen_intrinsic: project_field 1");
                             let dest = result.project_field(bx, 0);
                             bx.store_to_place(val, dest.val);
+                            info!("codegen_intrinsic: project_field 2");
                             let dest = result.project_field(bx, 1);
                             bx.store_to_place(success, dest.val);
                         } else {

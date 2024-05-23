@@ -1712,6 +1712,15 @@ extern "C" {
     pub fn LLVMRustBuildMinNum<'a>(B: &Builder<'a>, LHS: &'a Value, LHS: &'a Value) -> &'a Value;
     pub fn LLVMRustBuildMaxNum<'a>(B: &Builder<'a>, LHS: &'a Value, LHS: &'a Value) -> &'a Value;
 
+    pub fn LLVMRustBuildPreserveStructAccessIndex<'a>(
+        B: &Builder<'a>,
+        ElTy: &'a Type,
+        Base: &'a Value,
+        Index: c_uint,
+        FieldIndex: c_uint,
+        DbgInfo: &'a Metadata,
+    ) -> &'a Value;
+
     // Atomic Operations
     pub fn LLVMRustBuildAtomicLoad<'a>(
         B: &Builder<'a>,

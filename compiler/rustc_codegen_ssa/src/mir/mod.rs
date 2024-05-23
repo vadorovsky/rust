@@ -188,7 +188,11 @@ pub fn codegen_mir<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
         mir.basic_blocks
             .indices()
             .map(|bb| {
-                if bb == mir::START_BLOCK { CachedLlbb::Some(start_llbb) } else { CachedLlbb::None }
+                if bb == mir::START_BLOCK {
+                    CachedLlbb::Some(start_llbb)
+                } else {
+                    CachedLlbb::None
+                }
             })
             .collect();
 
@@ -334,6 +338,7 @@ fn arg_local_refs<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
                     if let PassMode::Cast { pad_i32: true, .. } = arg.mode {
                         llarg_idx += 1;
                     }
+                    info!("arg_local_refs: project_field");
                     let pr_field = place.project_field(bx, i);
                     bx.store_fn_arg(arg, &mut llarg_idx, pr_field);
                 }

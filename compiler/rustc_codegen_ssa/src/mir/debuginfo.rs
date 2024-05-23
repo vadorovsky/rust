@@ -175,6 +175,7 @@ fn calculate_debuginfo_offset<
             mir::ProjectionElem::Field(field, _) => {
                 let offset = indirect_offsets.last_mut().unwrap_or(&mut direct_offset);
                 *offset += place.layout().fields.offset(field.index());
+                info!("calculate_debuginfo_offset: project_field");
                 place = place.project_field(bx, field);
             }
             mir::ProjectionElem::Downcast(_, variant) => {

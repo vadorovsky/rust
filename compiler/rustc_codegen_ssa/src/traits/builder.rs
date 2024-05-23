@@ -161,7 +161,7 @@ pub trait BuilderMethods<'a, 'tcx>:
         self.load(ty, place.llval, place.align)
     }
     fn load_operand(&mut self, place: PlaceRef<'tcx, Self::Value>)
-    -> OperandRef<'tcx, Self::Value>;
+        -> OperandRef<'tcx, Self::Value>;
 
     /// Called for Rvalue::Repeat when the elem is neither a ZST nor optimizable using memset.
     fn write_operand_repeatedly(
@@ -210,6 +210,14 @@ pub trait BuilderMethods<'a, 'tcx>:
         ptr: Self::Value,
         indices: &[Self::Value],
     ) -> Self::Value;
+    fn preserve_struct_access_index(
+        &mut self,
+        el_ty: Self::Type,
+        base: Self::Value,
+        index: u32,
+        field_index: u32,
+        dbg_info: Self::DIScope,
+    ) -> Self::Value;
     fn ptradd(&mut self, ptr: Self::Value, offset: Self::Value) -> Self::Value {
         self.gep(self.cx().type_i8(), ptr, &[offset])
     }
@@ -257,7 +265,11 @@ pub trait BuilderMethods<'a, 'tcx>:
             return if signed { self.fptosi(x, dest_ty) } else { self.fptoui(x, dest_ty) };
         }
 
-        if signed { self.fptosi_sat(x, dest_ty) } else { self.fptoui_sat(x, dest_ty) }
+        if signed {
+            self.fptosi_sat(x, dest_ty)
+        } else {
+            self.fptoui_sat(x, dest_ty)
+        }
     }
 
     fn icmp(&mut self, op: IntPredicate, lhs: Self::Value, rhs: Self::Value) -> Self::Value;

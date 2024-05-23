@@ -2,7 +2,7 @@ use crate::abi::FnAbiLlvmExt;
 use crate::attributes;
 use crate::common::Funclet;
 use crate::context::CodegenCx;
-use crate::llvm::{self, AtomicOrdering, AtomicRmwBinOp, BasicBlock, False, True};
+use crate::llvm::{self, debuginfo::DIScope, AtomicOrdering, AtomicRmwBinOp, BasicBlock, False, True};
 use crate::llvm_util;
 use crate::type_::Type;
 use crate::type_of::LayoutLlvmExt;
@@ -784,6 +784,26 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
                 indices.as_ptr(),
                 indices.len() as c_uint,
                 UNNAMED,
+            )
+        }
+    }
+
+    fn preserve_struct_access_index(
+        &mut self,
+        el_ty: &'ll Type,
+        base: &'ll Value,
+        index: u32,
+        field_index: u32,
+        dbg_info: &'ll DIScope,
+    ) -> &'ll Value {
+        unsafe {
+            llvm::LLVMRustBuildPreserveStructAccessIndex(
+                self.llbuilder,
+                el_ty,
+                base,
+                index,
+                field_index,
+                dbg_info,
             )
         }
     }

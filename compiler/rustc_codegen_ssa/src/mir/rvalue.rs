@@ -145,6 +145,7 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                             let llindex = bx.cx().const_usize(field_index.as_u32().into());
                             variant_dest.project_index(bx, llindex)
                         } else {
+                            info!("codegen_rvalue: project_field");
                             variant_dest.project_field(bx, field_index.as_usize())
                         };
                         op.val.store(bx, field);
@@ -799,6 +800,7 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
         rhs: Bx::Value,
         input_ty: Ty<'tcx>,
     ) -> Bx::Value {
+        info!("-------------------------------- SCALAR BINOP ---------------------");
         let is_float = input_ty.is_floating_point();
         let is_signed = input_ty.is_signed();
         match op {
@@ -885,7 +887,11 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
             }
             mir::BinOp::Shr | mir::BinOp::ShrUnchecked => {
                 let rhs = base::build_shift_expr_rhs(bx, lhs, rhs, op == mir::BinOp::ShrUnchecked);
-                if is_signed { bx.ashr(lhs, rhs) } else { bx.lshr(lhs, rhs) }
+                if is_signed {
+                    bx.ashr(lhs, rhs)
+                } else {
+                    bx.lshr(lhs, rhs)
+                }
             }
             mir::BinOp::Ne
             | mir::BinOp::Lt

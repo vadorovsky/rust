@@ -146,23 +146,32 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         bx: &mut Bx,
         ix: usize,
     ) -> Self {
+        info!("Backtrace: {}", std::backtrace::Backtrace::force_capture());
+        info!("-------------------- PROJECTING FIELD --------------------");
+        info!("ix: {ix}");
+        info!("layout: {:?}", self.layout);
         let field = self.layout.field(bx.cx(), ix);
+        info!("field: {field:?}");
         let offset = self.layout.fields.offset(ix);
+        info!("offset: {offset:?}");
         let effective_field_align = self.val.align.restrict_for_offset(offset);
 
         // `simple` is called when we don't need to adjust the offset to
         // the dynamic alignment of the field.
         let mut simple = || {
             let llval = if offset.bytes() == 0 {
+                info!("simple: offset 0");
                 self.val.llval
             } else {
+                info!("simple: ptradd");
                 bx.inbounds_ptradd(self.val.llval, bx.const_usize(offset.bytes()))
             };
             let val = PlaceValue {
-                    llval,
+                llval,
                 llextra: if bx.cx().type_has_metadata(field.ty) { self.val.llextra } else { None },
-                    align: effective_field_align,
+                align: effective_field_align,
             };
+            info!("simple: val: {val:?}");
             val.with_type(field)
         };
 
@@ -172,9 +181,18 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         // Note that looking at `field.align` is incorrect since that is not necessarily equal
         // to the dynamic alignment of the type.
         match field.ty.kind() {
-            _ if field.is_sized() => return simple(),
-            ty::Slice(..) | ty::Str => return simple(),
-            _ if offset.bytes() == 0 => return simple(),
+            _ if field.is_sized() => {
+                info!("ty kind: sized");
+                return simple();
+            }
+            ty::Slice(..) | ty::Str => {
+                info!("ty kind: slice or str");
+                return simple();
+            }
+            _ if offset.bytes() == 0 => {
+                info!("ty kind: offset 0");
+                return simple();
+            }
             _ => {}
         }
 
@@ -206,6 +224,7 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         {
             let packed = bx.const_usize(packed.bytes());
             let cmp = bx.icmp(IntPredicate::IntULT, unsized_align, packed);
+            info!("capped alignment");
             unsized_align = bx.select(cmp, unsized_align, packed)
         }
 
@@ -216,8 +235,10 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
 
         // Adjust pointer.
         let ptr = bx.inbounds_ptradd(self.val.llval, offset);
+        debug!("ptr: {ptr:?}");
         let val =
             PlaceValue { llval: ptr, llextra: self.val.llextra, align: effective_field_align };
+        debug!("val: {val:?}");
         val.with_type(field)
     }
 
@@ -249,6 +270,7 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         };
 
         // Read the tag/niche-encoded discriminant from memory.
+        info!("codegen_get_discr: project_field");
         let tag = self.project_field(bx, tag_field);
         let tag_op = bx.load_operand(tag);
         let tag_imm = tag_op.immediate();
@@ -361,6 +383,7 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
                 assert_eq!(index, variant_index);
             }
             Variants::Multiple { tag_encoding: TagEncoding::Direct, tag_field, .. } => {
+                info!("codegen_set_discr: project_field 1");
                 let ptr = self.project_field(bx, tag_field);
                 let to =
                     self.layout.ty.discriminant_for_variant(bx.tcx(), variant_index).unwrap().val;
@@ -376,6 +399,7 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
                 ..
             } => {
                 if variant_index != untagged_variant {
+                    info!("codegen_set_discr: project_field 2");
                     let niche = self.project_field(bx, tag_field);
                     let niche_llty = bx.cx().immediate_backend_type(niche.layout);
                     let niche_value = variant_index.as_u32() - niche_variants.start().as_u32();
@@ -398,6 +422,8 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         bx: &mut Bx,
         llindex: V,
     ) -> Self {
+        info!("------------------ PROJECTING INDEX ----------------------");
+        info!("llindex: {llindex:?}");
         // Statically compute the offset if we can, otherwise just use the element size,
         // as this will yield the lowest alignment.
         let layout = self.layout.field(bx, 0);
@@ -408,9 +434,9 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         };
 
         let llval = bx.inbounds_gep(
-                    bx.cx().backend_type(self.layout),
-                    self.val.llval,
-                    &[bx.cx().const_usize(0), llindex],
+            bx.cx().backend_type(self.layout),
+            self.val.llval,
+            &[bx.cx().const_usize(0), llindex],
         );
         let align = self.val.align.restrict_for_offset(offset);
         PlaceValue::new_sized(llval, align).with_type(layout)
@@ -479,6 +505,9 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
             cg_base = match *elem {
                 mir::ProjectionElem::Deref => bx.load_operand(cg_base).deref(bx.cx()),
                 mir::ProjectionElem::Field(ref field, _) => {
+                    info!("place_ref: {place_ref:?}");
+                    info!("field: {field:?}");
+                    info!("THIS ONE: codegen_place: project_field");
                     cg_base.project_field(bx, field.index())
                 }
                 mir::ProjectionElem::OpaqueCast(ty) => {
