@@ -1,12 +1,12 @@
 use rustc_abi::Endian;
 
-use crate::spec::{LinkerFlavor, MergeFunctions, PanicStrategy, TargetOptions};
+use crate::spec::{Cc, LinkerFlavor, Lld, MergeFunctions, PanicStrategy, TargetOptions};
 
 pub(crate) fn opts(endian: Endian) -> TargetOptions {
     TargetOptions {
         allow_asm: true,
         endian,
-        linker_flavor: LinkerFlavor::Bpf,
+        linker_flavor: LinkerFlavor::Gnu(Cc::Yes, Lld::No),
         atomic_cas: false,
         dynamic_linking: true,
         no_builtins: true,
@@ -17,7 +17,6 @@ pub(crate) fn opts(endian: Endian) -> TargetOptions {
         // - on newer kernels, userspace still needs to relocate before calling
         //   BPF_PROG_LOAD and not all BPF libraries do that yet
         merge_functions: MergeFunctions::Disabled,
-        obj_is_bitcode: true,
         requires_lto: false,
         singlethread: true,
         // When targeting the `v3` cpu in llvm, 32-bit atomics are also supported.
