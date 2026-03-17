@@ -8,7 +8,7 @@ pub(crate) mod gpu_offload;
 
 use libc::{c_char, c_uint};
 use rustc_abi as abi;
-use rustc_abi::{Align, Size, WrappingRange};
+use rustc_abi::{Align, FieldIdx, Size, VariantIdx, WrappingRange};
 use rustc_codegen_ssa::MemFlags;
 use rustc_codegen_ssa::common::{IntPredicate, RealPredicate, SynchronizationScope, TypeKind};
 use rustc_codegen_ssa::mir::operand::{OperandRef, OperandValue};
@@ -16,6 +16,7 @@ use rustc_codegen_ssa::mir::place::PlaceRef;
 use rustc_codegen_ssa::traits::*;
 use rustc_data_structures::small_c_str::SmallCStr;
 use rustc_hir::def_id::DefId;
+use rustc_middle::bug;
 use rustc_middle::middle::codegen_fn_attrs::{CodegenFnAttrs, TargetFeature, TargetFeatureKind};
 use rustc_middle::ty::layout::{
     FnAbiError, FnAbiOfHelpers, FnAbiRequest, HasTypingEnv, LayoutError, LayoutOfHelpers,
@@ -34,6 +35,7 @@ use crate::abi::FnAbiLlvmExt;
 use crate::attributes;
 use crate::common::Funclet;
 use crate::context::{CodegenCx, FullCx, GenericCx, SCx};
+use crate::debuginfo::metadata::type_di_node;
 use crate::llvm::{
     self, AtomicOrdering, AtomicRmwBinOp, BasicBlock, FromGeneric, GEPNoWrapFlags, Metadata, TRUE,
     ToLlvmBool, Type, Value,
@@ -934,6 +936,172 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
                 GEPNoWrapFlags::InBounds | GEPNoWrapFlags::NUW,
             )
         }
+    }
+
+    /* BTF relocations */
+    fn btf_preserve_array_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ty: &'ll Type,
+        ptr: &'ll Value,
+        dimension: u64,
+        index: u64,
+    ) -> &'ll Value {
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            let mut indices = Vec::with_capacity(dimension as usize + 1);
+            for _ in 0..dimension {
+                indices.push(self.const_usize(0));
+            }
+            indices.push(self.const_usize(index));
+            return self.inbounds_gep(ty, ptr, &indices);
+        }
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveArrayAccessIndex(
+                self.llbuilder,
+                ty,
+                ptr,
+                dimension as c_uint,
+                index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_preserve_struct_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ty: &'ll Type,
+        ptr: &'ll Value,
+        gep_index: u64,
+        field_index: u64,
+    ) -> &'ll Value {
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            let zero = self.const_usize(0);
+            let gep_index = self.const_usize(gep_index);
+            return self.inbounds_gep(ty, ptr, &[zero, gep_index]);
+        }
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveStructAccessIndex(
+                self.llbuilder,
+                ty,
+                ptr,
+                gep_index as c_uint,
+                field_index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_preserve_union_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ptr: &'ll Value,
+        field_index: u64,
+    ) -> &'ll Value {
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            return ptr;
+        }
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveUnionAccessIndex(
+                self.llbuilder,
+                ptr,
+                field_index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_field_info(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        variant: VariantIdx,
+        field: FieldIdx,
+        kind: u32,
+    ) -> &'ll Value {
+        const BPF_FIELD_BYTE_OFFSET: u32 = 0;
+        const BPF_FIELD_BYTE_SIZE: u32 = 1;
+        const BPF_FIELD_EXISTS: u32 = 2;
+
+        fn llvm_struct_field_index<'ll, 'tcx>(
+            bx: &Builder<'_, 'll, 'tcx>,
+            layout: TyAndLayout<'tcx>,
+            field_index: usize,
+        ) -> usize {
+            let mut llvm_index = 0;
+            let mut offset = Size::ZERO;
+
+            for i in layout.fields.index_by_increasing_offset() {
+                let target_offset = layout.fields.offset(i as usize);
+                if target_offset != offset {
+                    llvm_index += 1;
+                }
+
+                if i as usize == field_index {
+                    return llvm_index;
+                }
+
+                let field = layout.field(bx.cx(), i);
+                llvm_index += 1;
+                offset = target_offset + field.size;
+            }
+
+            bug!("field index {field_index} not found in layout {layout:#?}")
+        }
+
+        let layout = self.layout_of(base_ty);
+        let cx = ty::layout::LayoutCx::new(self.tcx, self.typing_env());
+        let layout = layout.for_variant(&cx, variant);
+        let offset = layout.fields.offset(field.index()).bytes() as u32;
+        let field_layout = layout.field(self.cx(), field.index());
+        let size = field_layout.size.bytes() as u32;
+
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            return match kind {
+                BPF_FIELD_BYTE_OFFSET => self.const_u32(offset),
+                BPF_FIELD_BYTE_SIZE => self.const_u32(size),
+                BPF_FIELD_EXISTS => self.const_u32(1),
+                _ => bug!("unsupported static fallback for btf_field_info kind {kind}"),
+            };
+        }
+
+        let base = self.const_null(self.type_ptr());
+        let field_ptr = match base_ty.kind() {
+            ty::Adt(adt, _) if adt.is_union() || adt.is_enum() => {
+                return match kind {
+                    BPF_FIELD_BYTE_OFFSET => self.const_u32(offset),
+                    BPF_FIELD_BYTE_SIZE => self.const_u32(size),
+                    BPF_FIELD_EXISTS => self.const_u32(1),
+                    _ => bug!("unsupported union or enum fallback for btf_field_info kind {kind}"),
+                };
+            }
+            ty::Adt(..) | ty::Tuple(..) => {
+                let llvm_index = llvm_struct_field_index(self, layout, field.index());
+                self.btf_preserve_struct_access_index(
+                    base_ty,
+                    self.cx().backend_type(layout),
+                    base,
+                    llvm_index as u64,
+                    field.index() as u64,
+                )
+            }
+            _ => {
+                return match kind {
+                    BPF_FIELD_BYTE_OFFSET => self.const_u32(offset),
+                    BPF_FIELD_BYTE_SIZE => self.const_u32(size),
+                    BPF_FIELD_EXISTS => self.const_u32(1),
+                    _ => bug!("unsupported fallback for btf_field_info kind {kind}"),
+                };
+            }
+        };
+
+        self.call_intrinsic(
+            "llvm.bpf.preserve.field.info",
+            &[self.val_ty(field_ptr)],
+            &[field_ptr, self.const_u64(kind.into())],
+        )
     }
 
     /* Casts */

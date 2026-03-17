@@ -2769,6 +2769,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         self.tcx.adjust_ident_and_get_scope(field, base_def.did(), fn_body_hir_id);
 
                     if let Some((idx, field)) = self.find_adt_field(*base_def, ident) {
+                        if base_def.repr().btf() {
+                            return self.ban_btf_field_access(expr, ident);
+                        }
+
                         self.write_field_index(expr.hir_id, idx);
 
                         let adjustments = self.adjust_steps(&autoderef);
@@ -3117,6 +3121,25 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // See `StashKey::GenericInFieldExpr` for more info
         self.dcx().try_steal_replace_and_emit_err(field.span, StashKey::GenericInFieldExpr, err)
+    }
+
+    fn ban_btf_field_access(&self, expr: &'tcx hir::Expr<'tcx>, field: Ident) -> Ty<'tcx> {
+        let mut err = self
+            .dcx()
+            .struct_span_err(expr.span, "cannot access fields of a `#[repr(btf)]` type directly");
+        err.span_label(field.span, "direct field access is forbidden for `#[repr(btf)]` types");
+        err.note("use a BTF field intrinsic or builtin instead of direct field projection");
+        let guar = err.emit();
+        Ty::new_error(self.tcx, guar)
+    }
+
+    fn ban_btf_offset_of(&self, field: Ident, expr_span: Span) {
+        let mut err = self
+            .dcx()
+            .struct_span_err(expr_span, "cannot use `offset_of!` with a `#[repr(btf)]` type");
+        err.span_label(field.span, "`offset_of!` bypasses BTF relocation checks");
+        err.note("use a BTF field intrinsic or builtin instead of `offset_of!`");
+        err.emit();
     }
 
     fn point_at_param_definition(&self, err: &mut Diag<'_>, param: ty::ParamTy) {
@@ -3846,6 +3869,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     continue;
                 }
                 ty::Adt(container_def, args) => {
+                    if container_def.repr().btf() {
+                        self.ban_btf_offset_of(field, expr.span);
+                        break;
+                    }
+
                     let block = self.tcx.local_def_id_to_hir_id(self.body_id);
                     let (ident, def_scope) =
                         self.tcx.adjust_ident_and_get_scope(field, container_def.did(), block);

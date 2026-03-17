@@ -1,4 +1,4 @@
-use rustc_abi::{Align, WrappingRange};
+use rustc_abi::{Align, FieldIdx, VariantIdx, WrappingRange};
 use rustc_middle::mir::SourceInfo;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_middle::{bug, span_bug};
@@ -9,7 +9,7 @@ use rustc_target::spec::Arch;
 use super::FunctionCx;
 use super::operand::OperandRef;
 use super::place::PlaceRef;
-use crate::common::{AtomicRmwBinOp, SynchronizationScope};
+use crate::common::{AtomicRmwBinOp, IntPredicate, SynchronizationScope};
 use crate::errors::InvalidMonomorphization;
 use crate::traits::*;
 use crate::{MemFlags, meth, size_of_val};
@@ -576,6 +576,36 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                     // so can use `sub nuw` and `udiv exact` instead of dealing in signed.
                     let d = bx.unchecked_usub(a, b);
                     bx.exactudiv(d, pointee_size)
+                }
+            }
+
+            sym::btf_field_byte_offset | sym::btf_field_byte_size | sym::btf_field_exists => {
+                let tp_ty = fn_args.type_at(0);
+                let Some(variant) = bx.const_to_opt_uint(args[0].immediate()) else {
+                    span_bug!(span, "`btf_field_*` variant must be a constant");
+                };
+                let Some(field) = bx.const_to_opt_uint(args[1].immediate()) else {
+                    span_bug!(span, "`btf_field_*` field must be a constant");
+                };
+                let variant: u32 = variant.try_into().unwrap_or_else(|_| {
+                    span_bug!(span, "`btf_field_*` variant does not fit in u32");
+                });
+                let kind = match name {
+                    sym::btf_field_byte_offset => 0,
+                    sym::btf_field_byte_size => 1,
+                    sym::btf_field_exists => 2,
+                    _ => bug!(),
+                };
+                let llval = bx.btf_field_info(
+                    tp_ty,
+                    VariantIdx::from_u32(variant),
+                    FieldIdx::from_usize(field as usize),
+                    kind,
+                );
+                if result.layout.ty.is_bool() {
+                    bx.icmp(IntPredicate::IntNE, llval, bx.const_u32(0))
+                } else {
+                    bx.zext(llval, bx.type_isize())
                 }
             }
 

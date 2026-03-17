@@ -143,6 +143,7 @@ fn parse_repr<S: Stage>(cx: &AcceptContext<'_, '_, S>, param: &MetaItemParser) -
         (Some(sym::C), ArgParser::NoArgs) => Some(ReprC),
         (Some(sym::simd), ArgParser::NoArgs) => Some(ReprSimd),
         (Some(sym::transparent), ArgParser::NoArgs) => Some(ReprTransparent),
+        (Some(sym::btf), ArgParser::NoArgs) => Some(ReprBtf),
         (Some(name @ int_pat!()), ArgParser::NoArgs) => {
             // int_pat!() should make sure it always parses
             Some(ReprInt(int_type_of_word(name).unwrap()))
@@ -154,6 +155,7 @@ fn parse_repr<S: Stage>(cx: &AcceptContext<'_, '_, S>, param: &MetaItemParser) -
                 | name @ sym::C
                 | name @ sym::simd
                 | name @ sym::transparent
+                | name @ sym::btf
                 | name @ int_pat!(),
             ),
             ArgParser::NameValue(_),
@@ -167,6 +169,7 @@ fn parse_repr<S: Stage>(cx: &AcceptContext<'_, '_, S>, param: &MetaItemParser) -
                 | name @ sym::C
                 | name @ sym::simd
                 | name @ sym::transparent
+                | name @ sym::btf
                 | name @ int_pat!(),
             ),
             ArgParser::List(_),

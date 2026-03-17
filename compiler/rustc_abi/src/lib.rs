@@ -96,6 +96,7 @@ bitflags! {
         /// See [`TyAndLayout::pass_indirectly_in_non_rustic_abis`] for details.
         const PASS_INDIRECTLY_IN_NON_RUSTIC_ABIS = 1 << 5;
         const IS_SCALABLE        = 1 << 6;
+        const IS_BTF             = 1 << 7;
          // Any of these flags being set prevent field reordering optimisation.
         const FIELD_ORDER_UNOPTIMIZABLE = ReprFlags::IS_C.bits()
                                  | ReprFlags::IS_SIMD.bits()
@@ -201,6 +202,11 @@ impl ReprOptions {
     #[inline]
     pub fn linear(&self) -> bool {
         self.flags.contains(ReprFlags::IS_LINEAR)
+    }
+
+    #[inline]
+    pub fn btf(&self) -> bool {
+        self.flags.contains(ReprFlags::IS_BTF)
     }
 
     /// Returns the discriminant type, given these `repr` options.

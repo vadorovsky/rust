@@ -1,11 +1,11 @@
 use std::assert_matches;
 use std::ops::Deref;
 
-use rustc_abi::{Align, Scalar, Size, WrappingRange};
+use rustc_abi::{Align, FieldIdx, Scalar, Size, VariantIdx, WrappingRange};
 use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrs;
-use rustc_middle::mir;
 use rustc_middle::ty::layout::{FnAbiOf, LayoutOf, TyAndLayout};
-use rustc_middle::ty::{AtomicOrdering, Instance, Ty};
+use rustc_middle::ty::{self, AtomicOrdering, Instance, Ty};
+use rustc_middle::{bug, mir};
 use rustc_session::config::OptLevel;
 use rustc_span::Span;
 use rustc_target::callconv::FnAbi;
@@ -347,6 +347,67 @@ pub trait BuilderMethods<'a, 'tcx>:
     }
     fn inbounds_ptradd(&mut self, ptr: Self::Value, offset: Self::Value) -> Self::Value {
         self.inbounds_gep(self.cx().type_i8(), ptr, &[offset])
+    }
+
+    fn btf_field_info(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        variant: VariantIdx,
+        field: FieldIdx,
+        kind: u32,
+    ) -> Self::Value {
+        const BPF_FIELD_BYTE_OFFSET: u32 = 0;
+        const BPF_FIELD_BYTE_SIZE: u32 = 1;
+        const BPF_FIELD_EXISTS: u32 = 2;
+
+        let layout = self.layout_of(base_ty);
+        let cx = ty::layout::LayoutCx::new(self.tcx(), self.typing_env());
+        let layout = layout.for_variant(&cx, variant);
+        match kind {
+            BPF_FIELD_BYTE_OFFSET => {
+                self.const_u32(layout.fields.offset(field.index()).bytes() as u32)
+            }
+            BPF_FIELD_BYTE_SIZE => {
+                self.const_u32(layout.field(self.cx(), field.index()).size.bytes() as u32)
+            }
+            BPF_FIELD_EXISTS => self.const_u32(1),
+            _ => bug!("unsupported static fallback for btf_field_info kind {kind}"),
+        }
+    }
+    fn btf_preserve_array_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        ty: Self::Type,
+        ptr: Self::Value,
+        dimension: u64,
+        index: u64,
+    ) -> Self::Value {
+        let mut indices = Vec::with_capacity(dimension as usize + 1);
+        for _ in 0..dimension {
+            indices.push(self.const_usize(0));
+        }
+        indices.push(self.const_usize(index));
+        self.inbounds_gep(ty, ptr, &indices)
+    }
+    fn btf_preserve_struct_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        ty: Self::Type,
+        ptr: Self::Value,
+        gep_index: u64,
+        _field_index: u64,
+    ) -> Self::Value {
+        let zero = self.const_usize(0);
+        let gep_index = self.const_usize(gep_index);
+        self.inbounds_gep(ty, ptr, &[zero, gep_index])
+    }
+    fn btf_preserve_union_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        ptr: Self::Value,
+        _field_index: u64,
+    ) -> Self::Value {
+        ptr
     }
 
     fn trunc(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;

@@ -2817,6 +2817,30 @@ pub const fn align_of<T>() -> usize;
 #[lang = "offset_of"]
 pub const fn offset_of<T: PointeeSized>(variant: u32, field: u32) -> usize;
 
+/// Returns the BTF-relocatable byte offset of a field when supported.
+///
+/// On targets or backends without BTF field relocation support, this may fall back to
+/// the ordinary layout-computed field offset.
+#[rustc_intrinsic]
+#[unstable(feature = "core_intrinsics", issue = "none")]
+pub fn btf_field_byte_offset<T: PointeeSized>(variant: usize, field: usize) -> usize;
+
+/// Returns the BTF-relocatable byte size of a field when supported.
+///
+/// On targets or backends without BTF field relocation support, this may fall back to
+/// the ordinary layout-computed field size.
+#[rustc_intrinsic]
+#[unstable(feature = "core_intrinsics", issue = "none")]
+pub fn btf_field_byte_size<T: PointeeSized>(variant: usize, field: usize) -> usize;
+
+/// Returns whether a field exists according to BTF relocation information when supported.
+///
+/// On targets or backends without BTF field relocation support, this may conservatively
+/// fall back to the field being present in the current compilation unit's layout.
+#[rustc_intrinsic]
+#[unstable(feature = "core_intrinsics", issue = "none")]
+pub fn btf_field_exists<T: PointeeSized>(variant: usize, field: usize) -> bool;
+
 /// The offset of a field queried by its field representing type.
 ///
 /// Returns the offset of the field represented by `F`. This function essentially does the same as

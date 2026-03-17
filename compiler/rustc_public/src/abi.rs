@@ -486,6 +486,7 @@ pub struct ReprFlags {
     pub is_c: bool,
     pub is_transparent: bool,
     pub is_linear: bool,
+    pub is_btf: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize)]
