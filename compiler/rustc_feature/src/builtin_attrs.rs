@@ -517,6 +517,11 @@ pub static BUILTIN_ATTRIBUTES: &[BuiltinAttribute] = &[
         ),
         ErrorFollowing, EncodeCrossCrate::No,
     ),
+    gated!(
+        relocatable, Normal, template!(Word), WarnFollowing,
+        EncodeCrossCrate::Yes,
+        relocatable_types, "the `#[relocatable]` attribute is experimental",
+    ),
     ungated!(
         proc_macro_attribute, Normal,
         template!(Word, "https://doc.rust-lang.org/reference/procedural-macros.html#attribute-macros"),

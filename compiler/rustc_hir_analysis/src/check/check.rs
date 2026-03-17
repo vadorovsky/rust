@@ -115,6 +115,7 @@ fn check_struct(tcx: TyCtxt<'_>, def_id: LocalDefId) {
 
     check_transparent(tcx, def);
     check_packed(tcx, span, def);
+    check_relocatable(tcx, def_id, def);
 }
 
 fn check_union(tcx: TyCtxt<'_>, def_id: LocalDefId) {
@@ -124,6 +125,31 @@ fn check_union(tcx: TyCtxt<'_>, def_id: LocalDefId) {
     check_transparent(tcx, def);
     check_union_fields(tcx, span, def_id);
     check_packed(tcx, span, def);
+    check_relocatable(tcx, def_id, def);
+}
+
+fn check_relocatable<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId, def: AdtDef<'tcx>) {
+    let Some(attr_span) = find_attr!(tcx, def_id, Relocatable(span) => *span) else {
+        return;
+    };
+
+    if def.is_enum() {
+        tcx.dcx()
+            .struct_span_err(attr_span, "`#[relocatable]` is only supported on structs and unions")
+            .emit();
+        return;
+    }
+
+    if !def.repr().c() {
+        let mut err = tcx
+            .dcx()
+            .struct_span_err(
+                attr_span,
+                "`#[relocatable]` is only supported on `#[repr(C)]` structs and unions",
+            );
+        err.help("add `#[repr(C)]` to this type");
+        err.emit();
+    }
 }
 
 fn allowed_union_or_unsafe_field<'tcx>(
@@ -1846,6 +1872,7 @@ pub(super) fn check_transparent<'tcx>(tcx: TyCtxt<'tcx>, adt: ty::AdtDef<'tcx>) 
 fn check_enum(tcx: TyCtxt<'_>, def_id: LocalDefId) {
     let def = tcx.adt_def(def_id);
     def.destructor(tcx); // force the destructor to be evaluated
+    check_relocatable(tcx, def_id, def);
 
     if def.variants().is_empty() {
         find_attr!(tcx, def_id, Repr { reprs, first_span } => {

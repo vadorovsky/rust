@@ -34,6 +34,7 @@ use crate::abi::FnAbiLlvmExt;
 use crate::attributes;
 use crate::common::Funclet;
 use crate::context::{CodegenCx, FullCx, GenericCx, SCx};
+use crate::debuginfo::metadata::type_di_node;
 use crate::llvm::{
     self, AtomicOrdering, AtomicRmwBinOp, BasicBlock, FromGeneric, GEPNoWrapFlags, Metadata, TRUE,
     ToLlvmBool, Type, Value,
@@ -932,6 +933,82 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
                 indices.len() as c_uint,
                 UNNAMED,
                 GEPNoWrapFlags::InBounds | GEPNoWrapFlags::NUW,
+            )
+        }
+    }
+
+    /* BTF relocations */
+    fn btf_preserve_array_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ty: &'ll Type,
+        ptr: &'ll Value,
+        dimension: u64,
+        index: u64,
+    ) -> &'ll Value {
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            let mut indices = Vec::with_capacity(dimension as usize + 1);
+            for _ in 0..dimension {
+                indices.push(self.const_usize(0));
+            }
+            indices.push(self.const_usize(index));
+            return self.inbounds_gep(ty, ptr, &indices);
+        }
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveArrayAccessIndex(
+                self.llbuilder,
+                ty,
+                ptr,
+                dimension as c_uint,
+                index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_preserve_struct_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ty: &'ll Type,
+        ptr: &'ll Value,
+        gep_index: u64,
+        field_index: u64,
+    ) -> &'ll Value {
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            let zero = self.const_usize(0);
+            let gep_index = self.const_usize(gep_index);
+            return self.inbounds_gep(ty, ptr, &[zero, gep_index]);
+        }
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveStructAccessIndex(
+                self.llbuilder,
+                ty,
+                ptr,
+                gep_index as c_uint,
+                field_index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_preserve_union_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ptr: &'ll Value,
+        field_index: u64,
+    ) -> &'ll Value {
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            return ptr;
+        }
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveUnionAccessIndex(
+                self.llbuilder,
+                ptr,
+                field_index as c_uint,
+                Some(dbg_info),
             )
         }
     }

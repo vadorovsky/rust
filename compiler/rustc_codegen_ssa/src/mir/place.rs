@@ -4,7 +4,7 @@ use rustc_abi::{
 use rustc_middle::mir::PlaceTy;
 use rustc_middle::mir::interpret::Scalar;
 use rustc_middle::ty::layout::{HasTyCtxt, HasTypingEnv, LayoutOf, TyAndLayout};
-use rustc_middle::ty::{self, Ty};
+use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_middle::{bug, mir};
 use tracing::{debug, instrument};
 
@@ -30,6 +30,9 @@ pub struct PlaceValue<V> {
 
     /// The alignment we know for this place.
     pub align: Align,
+
+    /// Whether field accesses through this place emit relocations.
+    pub relocatable_access: bool,
 }
 
 impl<V: CodegenObject> PlaceValue<V> {
@@ -37,12 +40,20 @@ impl<V: CodegenObject> PlaceValue<V> {
     ///
     /// Sets `llextra` to `None`.
     pub fn new_sized(llval: V, align: Align) -> PlaceValue<V> {
-        PlaceValue { llval, llextra: None, align }
+        PlaceValue { llval, llextra: None, align, relocatable_access: false }
     }
 
     /// Constructor for the ordinary case of `Sized` types with `llextra`.
     pub fn new_sized_with_llextra(llval: V, llextra: Option<V>, align: Align) -> PlaceValue<V> {
-        PlaceValue { llval, llextra, align }
+        PlaceValue { llval, llextra, align, relocatable_access: false }
+    }
+
+    pub fn new_sized_with_relocatable_access(
+        llval: V,
+        align: Align,
+        relocatable_access: bool,
+    ) -> PlaceValue<V> {
+        PlaceValue { llval, llextra: None, align, relocatable_access }
     }
 
     /// Allocates a stack slot in the function for a value
@@ -95,6 +106,48 @@ pub struct PlaceRef<'tcx, V> {
 }
 
 impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
+    /// Returns whether relocation-aware access is enabled directly on `ty` via
+    /// `#[relocatable]`.
+    fn relocatable_access_ty(tcx: TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
+        let Some(adt) = ty.ty_adt_def() else {
+            return false;
+        };
+        adt.is_relocatable(tcx)
+    }
+
+    fn llvm_struct_field_index<Bx: BuilderMethods<'a, 'tcx, Value = V>>(
+        bx: &Bx,
+        layout: TyAndLayout<'tcx>,
+        field_index: usize,
+    ) -> usize {
+        let mut llvm_index = 0;
+        let mut offset = Size::ZERO;
+        let mut prev_effective_align = layout.align.abi;
+
+        for i in layout.fields.index_by_increasing_offset() {
+            let target_offset = layout.fields.offset(i as usize);
+            let field = layout.field(bx.cx(), i);
+            let effective_field_align =
+                layout.align.abi.min(field.align.abi).restrict_for_offset(target_offset);
+
+            let padding = target_offset - offset;
+            if padding != Size::ZERO {
+                llvm_index += 1;
+            }
+
+            if i as usize == field_index {
+                return llvm_index;
+            }
+
+            llvm_index += 1;
+            offset = target_offset + field.size;
+            prev_effective_align = effective_field_align;
+        }
+
+        let _ = prev_effective_align;
+        bug!("field index {field_index} not found in layout {layout:#?}")
+    }
+
     pub fn new_sized(llval: V, layout: TyAndLayout<'tcx>) -> PlaceRef<'tcx, V> {
         PlaceRef::new_sized_aligned(llval, layout, layout.align.abi)
     }
@@ -180,13 +233,42 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         let offset = self.layout.fields.offset(ix);
         let effective_field_align = self.val.align.restrict_for_offset(offset);
 
+        let llval = self.val.llval;
+        // Whether relocations apply to the projection we are about to emit:
+        // that includes request of relocations already carried by the
+        // place, plus attribute on the current type.
+        let relocatable_access =
+            self.val.relocatable_access
+                || Self::relocatable_access_ty(bx.cx().tcx(), self.layout.ty);
+        // Whether relocations apply to the field's type.
+        let field_relocatable_access =
+            relocatable_access || Self::relocatable_access_ty(bx.cx().tcx(), field.ty);
+
         // `simple` is called when we don't need to adjust the offset to
         // the dynamic alignment of the field.
         let mut simple = || {
-            let llval = if offset.bytes() == 0 {
-                self.val.llval
+            let llval = if relocatable_access && field.is_sized() {
+                match self.layout.ty.kind() {
+                    ty::Adt(adt, _) if adt.is_union() => {
+                        bx.btf_preserve_union_access_index(self.layout.ty, llval, ix as u64)
+                    }
+                    ty::Adt(..) | ty::Tuple(..) => {
+                        let llvm_index = Self::llvm_struct_field_index(bx, self.layout, ix);
+                        bx.btf_preserve_struct_access_index(
+                            self.layout.ty,
+                            bx.cx().backend_type(self.layout),
+                            llval,
+                            llvm_index as u64,
+                            ix as u64,
+                        )
+                    }
+                    _ if offset.bytes() == 0 => llval,
+                    _ => bx.inbounds_ptradd(llval, bx.const_usize(offset.bytes())),
+                }
+            } else if offset.bytes() == 0 {
+                llval
             } else {
-                bx.inbounds_ptradd(self.val.llval, bx.const_usize(offset.bytes()))
+                bx.inbounds_ptradd(llval, bx.const_usize(offset.bytes()))
             };
             let val = PlaceValue {
                 llval,
@@ -196,6 +278,7 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
                     None
                 },
                 align: effective_field_align,
+                relocatable_access: field_relocatable_access,
             };
             val.with_type(field)
         };
@@ -249,9 +332,13 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         debug!("struct_field_ptr: DST field offset: {:?}", offset);
 
         // Adjust pointer.
-        let ptr = bx.inbounds_ptradd(self.val.llval, offset);
-        let val =
-            PlaceValue { llval: ptr, llextra: self.val.llextra, align: effective_field_align };
+        let ptr = bx.inbounds_ptradd(llval, offset);
+        let val = PlaceValue {
+            llval: ptr,
+            llextra: self.val.llextra,
+            align: effective_field_align,
+            relocatable_access: field_relocatable_access,
+        };
         val.with_type(field)
     }
 
@@ -281,6 +368,13 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
         bx: &mut Bx,
         llindex: V,
     ) -> Self {
+        // Whether relocations apply to the projection we are about to emit:
+        // that includes request of relocations already carried by the
+        // place, plus attribute on the current type.
+        let relocatable_access =
+            self.val.relocatable_access
+                || Self::relocatable_access_ty(bx.cx().tcx(), self.layout.ty);
+
         // Statically compute the offset if we can, otherwise just use the element size,
         // as this will yield the lowest alignment.
         let layout = self.layout.field(bx, 0);
@@ -290,9 +384,29 @@ impl<'a, 'tcx, V: CodegenObject> PlaceRef<'tcx, V> {
             layout.size
         };
 
-        let llval = bx.inbounds_nuw_gep(bx.cx().backend_type(layout), self.val.llval, &[llindex]);
+        let base = self.val.llval;
+        let llval = if let Some(index) = bx.const_to_opt_uint(llindex)
+            && relocatable_access
+        {
+            bx.btf_preserve_array_access_index(
+                self.layout.ty,
+                bx.cx().backend_type(self.layout),
+                base,
+                1,
+                index,
+            )
+        } else {
+            bx.inbounds_nuw_gep(bx.cx().backend_type(layout), base, &[llindex])
+        };
         let align = self.val.align.restrict_for_offset(offset);
-        PlaceValue::new_sized(llval, align).with_type(layout)
+
+        // Whether relocations apply to the projected element's type.
+        let val_relocatable_access =
+            relocatable_access || Self::relocatable_access_ty(bx.cx().tcx(), layout.ty);
+
+        let val =
+            PlaceValue::new_sized_with_relocatable_access(llval, align, val_relocatable_access);
+        val.with_type(layout)
     }
 
     pub fn project_downcast<Bx: BuilderMethods<'a, 'tcx, Value = V>>(

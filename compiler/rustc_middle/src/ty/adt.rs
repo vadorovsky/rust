@@ -183,6 +183,11 @@ pub struct AdtDef<'tcx>(pub Interned<'tcx, AdtDefData>);
 
 impl<'tcx> AdtDef<'tcx> {
     #[inline]
+    pub fn is_relocatable(self, tcx: TyCtxt<'tcx>) -> bool {
+        find_attr!(tcx, self.did(), Relocatable(..))
+    }
+
+    #[inline]
     pub fn did(self) -> DefId {
         self.0.0.did
     }

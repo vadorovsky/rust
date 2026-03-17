@@ -22,7 +22,7 @@ impl<S: Stage> CombineAttributeParser<S> for ReprParser {
         |items, first_span| AttributeKind::Repr { reprs: items, first_span };
     // FIXME(jdonszelmann): never used
     const TEMPLATE: AttributeTemplate = template!(
-        List: &["C", "Rust", "transparent", "align(...)", "packed(...)", "<integer type>"],
+        List: &["C", "Rust", "btf", "transparent", "align(...)", "packed(...)", "<integer type>"],
         "https://doc.rust-lang.org/reference/type-layout.html#representations"
     );
 

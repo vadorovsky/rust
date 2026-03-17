@@ -282,6 +282,7 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
                     | AttributeKind::RecursionLimit { .. }
                     | AttributeKind::ReexportTestHarnessMain(..)
                     | AttributeKind::RegisterTool(..)
+                    | AttributeKind::Relocatable(..)
                     // handled below this loop and elsewhere
                     | AttributeKind::Repr { .. }
                     | AttributeKind::RustcAbi { .. }

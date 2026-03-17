@@ -113,6 +113,19 @@ impl<S: Stage> SingleAttributeParser<S> for CoverageParser {
     }
 }
 
+pub(crate) struct RelocatableParser;
+
+impl<S: Stage> NoArgsAttributeParser<S> for RelocatableParser {
+    const PATH: &[Symbol] = &[sym::relocatable];
+    const ON_DUPLICATE: OnDuplicate<S> = OnDuplicate::Warn;
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[
+        Allow(Target::Struct),
+        Allow(Target::Enum),
+        Allow(Target::Union),
+    ]);
+    const CREATE: fn(Span) -> AttributeKind = AttributeKind::Relocatable;
+}
+
 pub(crate) struct ExportNameParser;
 
 impl<S: Stage> SingleAttributeParser<S> for ExportNameParser {

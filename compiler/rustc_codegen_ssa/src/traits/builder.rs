@@ -349,6 +349,42 @@ pub trait BuilderMethods<'a, 'tcx>:
         self.inbounds_gep(self.cx().type_i8(), ptr, &[offset])
     }
 
+    fn btf_preserve_array_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        ty: Self::Type,
+        ptr: Self::Value,
+        dimension: u64,
+        index: u64,
+    ) -> Self::Value {
+        let mut indices = Vec::with_capacity(dimension as usize + 1);
+        for _ in 0..dimension {
+            indices.push(self.const_usize(0));
+        }
+        indices.push(self.const_usize(index));
+        self.inbounds_gep(ty, ptr, &indices)
+    }
+    fn btf_preserve_struct_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        ty: Self::Type,
+        ptr: Self::Value,
+        gep_index: u64,
+        _field_index: u64,
+    ) -> Self::Value {
+        let zero = self.const_usize(0);
+        let gep_index = self.const_usize(gep_index);
+        self.inbounds_gep(ty, ptr, &[zero, gep_index])
+    }
+    fn btf_preserve_union_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        ptr: Self::Value,
+        _field_index: u64,
+    ) -> Self::Value {
+        ptr
+    }
+
     fn trunc(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
     /// Produces the same value as [`Self::trunc`] (and defaults to that),
     /// but is UB unless the *zero*-extending the result can reproduce `val`.

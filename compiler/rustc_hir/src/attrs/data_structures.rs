@@ -1252,6 +1252,9 @@ pub enum AttributeKind {
     /// Represents `#[register_tool]`
     RegisterTool(ThinVec<Ident>, Span),
 
+    /// Represents `#[relocatable]`.
+    Relocatable(Span),
+
     /// Represents [`#[repr]`](https://doc.rust-lang.org/stable/reference/type-layout.html#representations).
     Repr {
         reprs: ThinVec<(ReprAttr, Span)>,

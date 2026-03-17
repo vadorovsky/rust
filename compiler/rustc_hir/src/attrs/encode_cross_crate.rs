@@ -94,6 +94,7 @@ impl AttributeKind {
             RecursionLimit { .. } => No,
             ReexportTestHarnessMain(..) => No,
             RegisterTool(..) => No,
+            Relocatable(..) => Yes,
             Repr { .. } => No,
             RustcAbi { .. } => No,
             RustcAlign { .. } => No,

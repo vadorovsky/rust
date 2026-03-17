@@ -1,0 +1,10 @@
+error: `#[relocatable]` is only supported on `#[repr(C)]` structs and unions
+  --> $DIR/relocatable-requires-repr-c.rs:3:1
+   |
+LL | #[relocatable]
+   | ^^^^^^^^^^^^^^
+   |
+   = help: add `#[repr(C)]` to this type
+
+error: aborting due to 1 previous error
+
