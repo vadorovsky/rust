@@ -822,6 +822,29 @@ fn codegen_stmt<'tcx>(fx: &mut FunctionCx<'_, '_, 'tcx>, cur_block: Block, stmt:
                     let value = place.to_cvalue(fx);
                     crate::discriminant::codegen_get_discriminant(fx, lval, value, dest_layout);
                 }
+                Rvalue::BtfFieldInfo { ref path, kind, .. } => {
+                    let cx = ty::layout::LayoutCx::new(fx.tcx, fx.typing_env());
+                    let mut offset = Size::ZERO;
+                    let mut terminal_size = None;
+                    for step in path {
+                        let container_ty = fx.monomorphize(step.container_ty);
+                        let layout = fx.layout_of(container_ty);
+                        let layout = layout.for_variant(&cx, step.variant);
+                        offset += layout.fields.offset(step.field.index());
+                        terminal_size = Some(layout.field(fx, step.field.index()).size);
+                    }
+                    let Some(terminal_size) = terminal_size else {
+                        bug!("empty BTF field path");
+                    };
+                    let value = match kind {
+                        BtfFieldInfoKind::ByteOffset => offset.bytes(),
+                        BtfFieldInfoKind::ByteSize => terminal_size.bytes(),
+                        BtfFieldInfoKind::Exists => 1,
+                    };
+                    let clif_ty = fx.clif_type(dest_layout.ty).unwrap();
+                    let value = fx.bcx.ins().iconst(clif_ty, value as i64);
+                    lval.write_cvalue(fx, CValue::by_val(value, dest_layout));
+                }
                 Rvalue::Repeat(ref operand, times) => {
                     let operand = codegen_operand(fx, operand);
                     let times = fx

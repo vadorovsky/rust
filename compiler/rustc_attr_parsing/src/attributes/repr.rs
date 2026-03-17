@@ -23,7 +23,7 @@ impl CombineAttributeParser for ReprParser {
     const CONVERT: ConvertFn<Self::Item> =
         |items, first_span| AttributeKind::Repr { reprs: items, first_span };
     const TEMPLATE: AttributeTemplate = template!(
-        List: &["C", "Rust", "transparent", "align(...)", "packed(...)", "<integer type>"],
+        List: &["C", "Rust", "Btf", "transparent", "align(...)", "packed(...)", "<integer type>"],
         "https://doc.rust-lang.org/reference/type-layout.html#representations"
     );
 
@@ -82,6 +82,7 @@ fn parse_repr(cx: &mut AcceptContext<'_, '_>, param: &MetaItemParser) -> Option<
         },
         Some(sym::Rust) => no_args!(ReprRust),
         Some(sym::C) => no_args!(ReprC),
+        Some(sym::Btf) => no_args!(ReprBtf),
         Some(sym::simd) => no_args!(ReprSimd),
         Some(sym::transparent) => no_args!(ReprTransparent),
         Some(sym::i8) => no_args!(ReprInt(SignedInt(IntTy::I8))),
@@ -104,6 +105,7 @@ fn parse_repr(cx: &mut AcceptContext<'_, '_>, param: &MetaItemParser) -> Option<
                     sym::packed,
                     sym::Rust,
                     sym::C,
+                    sym::Btf,
                     sym::simd,
                     sym::transparent,
                     sym::i8,

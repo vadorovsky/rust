@@ -1,0 +1,23 @@
+error: cannot access fields of a `#[repr(Btf)]` type directly
+  --> $DIR/repr-btf-field-access.rs:9:5
+   |
+LL |     task.pid
+   |     ^^^^^---
+   |          |
+   |          direct field access is forbidden for `#[repr(Btf)]` types
+   |
+   = note: use a BTF field-info macro instead of direct field projection
+
+error: cannot use `offset_of!` with a `#[repr(Btf)]` type
+  --> $DIR/repr-btf-field-access.rs:14:5
+   |
+LL |     std::mem::offset_of!(Task, pid)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^---^
+   |                                |
+   |                                `offset_of!` bypasses BTF relocation checks
+   |
+   = note: use a BTF field-info macro instead of `offset_of!`
+   = note: this error originates in the macro `std::mem::offset_of` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: aborting due to 2 previous errors
+

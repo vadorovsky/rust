@@ -5,7 +5,7 @@
 //!
 //! See [`rustc_hir_analysis::check`] for more context on type checking in general.
 
-use rustc_abi::{FIRST_VARIANT, FieldIdx};
+use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_ast as ast;
 use rustc_ast::util::parser::ExprPrecedence;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
@@ -350,6 +350,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
             ExprKind::OffsetOf(container, fields) => {
                 self.check_expr_offset_of(container, fields, expr)
+            }
+            ExprKind::BtfFieldInfo(container, fields, kind) => {
+                self.check_expr_btf_field_info(container, fields, kind, expr)
             }
             ExprKind::Break(destination, ref expr_opt) => {
                 self.check_expr_break(destination, expr_opt.as_deref(), expr)
@@ -2761,6 +2764,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         self.tcx.adjust_ident_and_get_scope(field, base_def.did(), fn_body_hir_id);
 
                     if let Some((idx, field)) = self.find_adt_field(*base_def, ident) {
+                        if base_def.repr().btf() {
+                            return self.ban_btf_field_access(expr, ident);
+                        }
+
                         self.write_field_index(expr.hir_id, idx);
 
                         let adjustments = self.adjust_steps(&autoderef);
@@ -3109,6 +3116,25 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // See `StashKey::GenericInFieldExpr` for more info
         self.dcx().try_steal_replace_and_emit_err(field.span, StashKey::GenericInFieldExpr, err)
+    }
+
+    fn ban_btf_field_access(&self, expr: &'tcx hir::Expr<'tcx>, field: Ident) -> Ty<'tcx> {
+        let mut err = self
+            .dcx()
+            .struct_span_err(expr.span, "cannot access fields of a `#[repr(Btf)]` type directly");
+        err.span_label(field.span, "direct field access is forbidden for `#[repr(Btf)]` types");
+        err.note("use a BTF field-info macro instead of direct field projection");
+        let guar = err.emit();
+        Ty::new_error(self.tcx, guar)
+    }
+
+    fn ban_btf_offset_of(&self, field: Ident, expr_span: Span) {
+        let mut err = self
+            .dcx()
+            .struct_span_err(expr_span, "cannot use `offset_of!` with a `#[repr(Btf)]` type");
+        err.span_label(field.span, "`offset_of!` bypasses BTF relocation checks");
+        err.note("use a BTF field-info macro instead of `offset_of!`");
+        err.emit();
     }
 
     fn point_at_param_definition(&self, err: &mut Diag<'_>, param: ty::ParamTy) {
@@ -3747,6 +3773,39 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         fields: &[Ident],
         expr: &'tcx hir::Expr<'tcx>,
     ) -> Ty<'tcx> {
+        let field_indices = self.resolve_field_path(container, fields, false, expr);
+        self.typeck_results.borrow_mut().offset_of_data_mut().insert(expr.hir_id, field_indices);
+        self.tcx.types.usize
+    }
+
+    fn check_expr_btf_field_info(
+        &self,
+        container: &'tcx hir::Ty<'tcx>,
+        fields: &[Ident],
+        kind: hir::BtfFieldInfoKind,
+        expr: &'tcx hir::Expr<'tcx>,
+    ) -> Ty<'tcx> {
+        let field_indices = self.resolve_field_path(container, fields, true, expr);
+        self.typeck_results
+            .borrow_mut()
+            .btf_field_info_data_mut()
+            .insert(expr.hir_id, field_indices);
+
+        match kind {
+            hir::BtfFieldInfoKind::Exists => self.tcx.types.bool,
+            hir::BtfFieldInfoKind::ByteOffset | hir::BtfFieldInfoKind::ByteSize => {
+                self.tcx.types.usize
+            }
+        }
+    }
+
+    fn resolve_field_path(
+        &self,
+        container: &'tcx hir::Ty<'tcx>,
+        fields: &[Ident],
+        allow_btf_relocatable: bool,
+        expr: &'tcx hir::Expr<'tcx>,
+    ) -> Vec<(Ty<'tcx>, VariantIdx, FieldIdx)> {
         let mut current_container = self.lower_ty(container).normalized;
         let mut field_indices = Vec::with_capacity(fields.len());
         let mut fields = fields.into_iter();
@@ -3842,6 +3901,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     continue;
                 }
                 ty::Adt(container_def, args) => {
+                    if container_def.repr().btf() && !allow_btf_relocatable {
+                        self.ban_btf_offset_of(field, expr.span);
+                        break;
+                    }
+
                     let block = self.tcx.local_def_id_to_hir_id(self.body_id);
                     let (ident, def_scope) =
                         self.tcx.adjust_ident_and_get_scope(field, container_def.did(), block);
@@ -3907,8 +3971,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             break;
         }
 
-        self.typeck_results.borrow_mut().offset_of_data_mut().insert(expr.hir_id, field_indices);
-
-        self.tcx.types.usize
+        field_indices
     }
 }

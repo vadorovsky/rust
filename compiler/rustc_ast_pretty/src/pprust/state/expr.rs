@@ -795,7 +795,32 @@ impl<'a> State<'a> {
                 self.pclose();
             }
             ast::ExprKind::OffsetOf(container, fields) => {
-                self.word("builtin # offset_of");
+                self.word("builtin # ");
+                self.word("offset_of");
+                self.popen();
+                let ib = self.ibox(0);
+                self.print_type(container);
+                self.word(",");
+                self.space();
+
+                if let Some((&first, rest)) = fields.split_first() {
+                    self.print_ident(first);
+
+                    for &field in rest {
+                        self.word(".");
+                        self.print_ident(field);
+                    }
+                }
+                self.end(ib);
+                self.pclose();
+            }
+            ast::ExprKind::BtfFieldInfo(container, fields, kind) => {
+                self.word("builtin # ");
+                self.word(match kind {
+                    ast::BtfFieldInfoKind::ByteOffset => "btf_field_byte_offset",
+                    ast::BtfFieldInfoKind::ByteSize => "btf_field_byte_size",
+                    ast::BtfFieldInfoKind::Exists => "btf_field_exists",
+                });
                 self.popen();
                 let ib = self.ibox(0);
                 self.print_type(container);

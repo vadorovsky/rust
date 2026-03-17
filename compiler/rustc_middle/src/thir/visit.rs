@@ -186,6 +186,7 @@ pub fn walk_expr<'thir, 'tcx: 'thir, V: Visitor<'thir, 'tcx>>(
             }
         }
         ThreadLocalRef(_) => {}
+        BtfFieldInfo { base_ty: _, path: _, kind: _ } => {}
         Yield { value } => visitor.visit_expr(&visitor.thir()[value]),
         Reborrow { .. } => {}
     }

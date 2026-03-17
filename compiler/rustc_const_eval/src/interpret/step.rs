@@ -5,9 +5,10 @@
 use std::iter;
 
 use either::Either;
-use rustc_abi::{FIRST_VARIANT, FieldIdx};
+use rustc_abi::{FIRST_VARIANT, FieldIdx, Size};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_index::IndexSlice;
+use rustc_middle::mir::interpret::Scalar;
 use rustc_middle::ty::{self, Instance, Ty};
 use rustc_middle::{bug, mir, span_bug};
 use rustc_span::Spanned;
@@ -277,6 +278,34 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
                 let variant = self.read_discriminant(&op)?;
                 let discr = self.discriminant_for_variant(op.layout.ty, variant)?;
                 self.write_immediate(*discr, &dest)?;
+            }
+
+            BtfFieldInfo { ref path, kind, .. } => {
+                let mut offset = Size::ZERO;
+                let mut terminal_size = None;
+                for step in path {
+                    let container_ty = self
+                        .instantiate_from_current_frame_and_normalize_erasing_regions(
+                            step.container_ty,
+                        )?;
+                    let layout = self.layout_of(container_ty)?;
+                    let layout = layout.for_variant(self, step.variant);
+                    offset += layout.fields.offset(step.field.index());
+                    terminal_size = Some(layout.field(self, step.field.index()).size);
+                }
+                let Some(terminal_size) = terminal_size else {
+                    bug!("empty BTF field path");
+                };
+                let value = match kind {
+                    mir::BtfFieldInfoKind::ByteOffset => {
+                        Scalar::from_uint(offset.bytes(), dest.layout.size)
+                    }
+                    mir::BtfFieldInfoKind::ByteSize => {
+                        Scalar::from_uint(terminal_size.bytes(), dest.layout.size)
+                    }
+                    mir::BtfFieldInfoKind::Exists => Scalar::from_bool(true),
+                };
+                self.write_scalar(value, &dest)?;
             }
 
             WrapUnsafeBinder(ref op, _ty) => {

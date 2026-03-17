@@ -373,6 +373,7 @@ impl<'a, 'tcx> Visitor<'a, 'tcx> for UnsafetyVisitor<'a, 'tcx> {
             | ExprKind::Repeat { .. }
             | ExprKind::StaticRef { .. }
             | ExprKind::ThreadLocalRef { .. }
+            | ExprKind::BtfFieldInfo { .. }
             | ExprKind::Tuple { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Call { .. }

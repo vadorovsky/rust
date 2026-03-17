@@ -164,6 +164,7 @@ pub enum ReprAttr {
     ReprSimd,
     ReprTransparent,
     ReprAlign(Align),
+    ReprBtf,
 }
 
 pub enum TransparencyError {

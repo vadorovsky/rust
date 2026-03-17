@@ -1214,6 +1214,7 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
         let mut is_c = false;
         let mut is_simd = false;
         let mut is_transparent = false;
+        let mut is_btf = false;
 
         for (repr, repr_span) in reprs {
             match repr {
@@ -1306,6 +1307,18 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
                         continue;
                     }
                 }
+                ReprAttr::ReprBtf => {
+                    is_btf = true;
+                    is_c = true;
+                    if target == Target::Struct || target == Target::Union {
+                        continue;
+                    } else {
+                        self.dcx().emit_err(errors::AttrApplication::StructUnion {
+                            hint_span: *repr_span,
+                            span,
+                        });
+                    }
+                }
             };
         }
 
@@ -1355,7 +1368,7 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
                 target: target.to_string(),
             });
         }
-        if is_explicit_rust && (int_reprs > 0 || is_c || is_simd) {
+        if is_explicit_rust && (int_reprs > 0 || is_c || is_simd || is_btf) {
             let hint_spans = hint_spans.clone().collect();
             self.dcx().emit_err(errors::ReprConflicting { hint_spans });
         }

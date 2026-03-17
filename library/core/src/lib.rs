@@ -286,6 +286,8 @@ pub mod ub_checks;
 /* Core language traits */
 
 pub mod borrow;
+#[unstable(feature = "btf_relocations", issue = "none")]
+pub mod btf;
 pub mod clone;
 pub mod cmp;
 pub mod convert;

@@ -1568,6 +1568,7 @@ impl<'tcx> TyCtxt<'tcx> {
                         max_align = max_align.max(Some(align));
                         ReprFlags::empty()
                     }
+                    attr::ReprBtf => ReprFlags::IS_C | ReprFlags::IS_BTF,
                 });
             }
         }

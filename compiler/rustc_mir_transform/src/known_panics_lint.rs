@@ -447,6 +447,7 @@ impl<'mir, 'tcx> ConstPropagator<'mir, 'tcx> {
             | Rvalue::Repeat(..)
             | Rvalue::Cast(..)
             | Rvalue::Discriminant(..)
+            | Rvalue::BtfFieldInfo { .. }
             | Rvalue::WrapUnsafeBinder(..) => {}
         }
 
@@ -548,6 +549,7 @@ impl<'mir, 'tcx> ConstPropagator<'mir, 'tcx> {
 
         let val: Value<'_> = match *rvalue {
             ThreadLocalRef(_) => return None,
+            BtfFieldInfo { .. } => return None,
 
             Use(ref operand, _) | WrapUnsafeBinder(ref operand, _) => {
                 self.eval_operand(operand)?.into()

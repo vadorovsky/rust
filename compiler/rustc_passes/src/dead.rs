@@ -7,7 +7,7 @@ use std::mem;
 use std::ops::ControlFlow;
 
 use hir::def_id::{LocalDefIdMap, LocalDefIdSet};
-use rustc_abi::FieldIdx;
+use rustc_abi::{FieldIdx, VariantIdx};
 use rustc_data_structures::fx::{FxHashSet, FxIndexSet};
 use rustc_errors::{ErrorGuaranteed, MultiSpan};
 use rustc_hir::def::{CtorOf, DefKind, Res};
@@ -18,7 +18,7 @@ use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrFlags;
 use rustc_middle::middle::dead_code::{DeadCodeLivenessSnapshot, DeadCodeLivenessSummary};
 use rustc_middle::middle::privacy::Level;
 use rustc_middle::query::Providers;
-use rustc_middle::ty::{self, AssocTag, TyCtxt};
+use rustc_middle::ty::{self, AssocTag, Ty, TyCtxt};
 use rustc_middle::{bug, span_bug};
 use rustc_session::config::CrateType;
 use rustc_session::lint::builtin::{DEAD_CODE, DEAD_CODE_PUB_IN_BINARY};
@@ -365,13 +365,11 @@ impl<'tcx> MarkSymbolVisitor<'tcx> {
         }
     }
 
-    fn handle_offset_of(&mut self, expr: &'tcx hir::Expr<'tcx>) {
-        let indices = self
-            .typeck_results()
-            .offset_of_data()
-            .get(expr.hir_id)
-            .expect("no offset_of_data for offset_of");
-
+    fn handle_field_path(
+        &mut self,
+        expr: &'tcx hir::Expr<'tcx>,
+        indices: &[(Ty<'tcx>, VariantIdx, FieldIdx)],
+    ) {
         for &(current_ty, variant, field) in indices {
             match current_ty.kind() {
                 ty::Adt(def, _) => {
@@ -384,6 +382,24 @@ impl<'tcx> MarkSymbolVisitor<'tcx> {
                 _ => span_bug!(expr.span, "named field access on non-ADT"),
             }
         }
+    }
+
+    fn handle_offset_of(&mut self, expr: &'tcx hir::Expr<'tcx>) {
+        let indices = self
+            .typeck_results()
+            .offset_of_data()
+            .get(expr.hir_id)
+            .expect("no offset_of_data for offset_of");
+        self.handle_field_path(expr, indices);
+    }
+
+    fn handle_btf_field_info(&mut self, expr: &'tcx hir::Expr<'tcx>) {
+        let indices = self
+            .typeck_results()
+            .btf_field_info_data()
+            .get(expr.hir_id)
+            .expect("no btf_field_info_data for BTF field-info expression");
+        self.handle_field_path(expr, indices);
     }
 
     fn mark_live_symbols(&mut self) -> <MarkSymbolVisitor<'tcx> as Visitor<'tcx>>::Result {
@@ -653,6 +669,9 @@ impl<'tcx> Visitor<'tcx> for MarkSymbolVisitor<'tcx> {
             }
             hir::ExprKind::OffsetOf(..) => {
                 self.handle_offset_of(expr);
+            }
+            hir::ExprKind::BtfFieldInfo(..) => {
+                self.handle_btf_field_info(expr);
             }
             hir::ExprKind::Assign(ref lhs, ..) => {
                 self.handle_assign(lhs);

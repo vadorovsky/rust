@@ -578,6 +578,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             | ExprKind::ConstParam { .. }
             | ExprKind::ConstBlock { .. }
             | ExprKind::StaticRef { .. }
+            | ExprKind::BtfFieldInfo { .. }
             | ExprKind::InlineAsm { .. }
             | ExprKind::Yield { .. }
             | ExprKind::ThreadLocalRef(_)

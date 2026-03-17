@@ -98,6 +98,7 @@ impl<'a, 'tcx> Visitor<'tcx> for Lint<'a, 'tcx> {
                     | Rvalue::Ref(..)
                     | Rvalue::Reborrow(..)
                     | Rvalue::RawPtr(..)
+                    | Rvalue::BtfFieldInfo { .. }
                     | Rvalue::Discriminant(..) => false,
                 };
                 // The sides of an assignment must not alias.

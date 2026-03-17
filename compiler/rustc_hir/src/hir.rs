@@ -2598,6 +2598,7 @@ impl Expr<'_> {
             | ExprKind::Match(..)
             | ExprKind::MethodCall(..)
             | ExprKind::OffsetOf(..)
+            | ExprKind::BtfFieldInfo(..)
             | ExprKind::Path(..)
             | ExprKind::Repeat(..)
             | ExprKind::Struct(..)
@@ -2670,6 +2671,7 @@ impl Expr<'_> {
             | ExprKind::Assign(..)
             | ExprKind::InlineAsm(..)
             | ExprKind::OffsetOf(..)
+            | ExprKind::BtfFieldInfo(..)
             | ExprKind::AssignOp(..)
             | ExprKind::Lit(_)
             | ExprKind::ConstBlock(..)
@@ -2731,9 +2733,11 @@ impl Expr<'_> {
 
     pub fn can_have_side_effects(&self) -> bool {
         match self.peel_drop_temps().kind {
-            ExprKind::Path(_) | ExprKind::Lit(_) | ExprKind::OffsetOf(..) | ExprKind::Use(..) => {
-                false
-            }
+            ExprKind::Path(_)
+            | ExprKind::Lit(_)
+            | ExprKind::OffsetOf(..)
+            | ExprKind::BtfFieldInfo(..)
+            | ExprKind::Use(..) => false,
             ExprKind::Type(base, _)
             | ExprKind::Unary(_, base)
             | ExprKind::Field(base, _)
@@ -2899,6 +2903,13 @@ pub fn expr_needs_parens(expr: &Expr<'_>) -> bool {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, StableHash)]
+pub enum BtfFieldInfoKind {
+    ByteOffset,
+    ByteSize,
+    Exists,
+}
+
 #[derive(Debug, Clone, Copy, StableHash)]
 pub enum ExprKind<'hir> {
     /// Allow anonymous constants from an inline `const` block
@@ -3014,6 +3025,9 @@ pub enum ExprKind<'hir> {
 
     /// Field offset (`offset_of!`)
     OffsetOf(&'hir Ty<'hir>, &'hir [Ident]),
+
+    /// BTF field metadata query (`core::btf::field_*!(...)`)
+    BtfFieldInfo(&'hir Ty<'hir>, &'hir [Ident], BtfFieldInfoKind),
 
     /// A struct or struct-like variant literal expression.
     ///

@@ -212,6 +212,7 @@ where
             | mir::Rvalue::BinaryOp(..)
             | mir::Rvalue::UnaryOp(..)
             | mir::Rvalue::Discriminant(..)
+            | mir::Rvalue::BtfFieldInfo { .. }
             | mir::Rvalue::Aggregate(..)
             | mir::Rvalue::WrapUnsafeBinder(..) => {}
         }

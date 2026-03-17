@@ -208,6 +208,14 @@ impl<'a> Visitor<'a> for PostExpansionVisitor<'a> {
                                 "SIMD types are experimental and possibly buggy"
                             );
                         }
+                        if item.has_name(sym::Btf) {
+                            gate!(
+                                &self,
+                                btf_relocations,
+                                attr.span,
+                                "BTF relocations are experimental"
+                            );
+                        }
                     }
                 }
             }

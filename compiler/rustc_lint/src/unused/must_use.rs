@@ -361,6 +361,7 @@ impl<'tcx> LateLintPass<'tcx> for UnusedResults {
             },
             hir::ExprKind::AddrOf(..) => Some("borrow"),
             hir::ExprKind::OffsetOf(..) => Some("`offset_of` call"),
+            hir::ExprKind::BtfFieldInfo(..) => Some("BTF field-info query"),
             hir::ExprKind::Unary(..) => Some("unary operation"),
             // The `offset_of` macro wraps its contents inside a `const` block.
             hir::ExprKind::ConstBlock(block) => {

@@ -398,6 +398,7 @@ impl<'tcx> Stable<'tcx> for rustc_abi::ReprFlags {
             is_c: self.intersects(Self::IS_C),
             is_transparent: self.intersects(Self::IS_TRANSPARENT),
             is_linear: self.intersects(Self::IS_LINEAR),
+            is_btf: self.intersects(Self::IS_BTF),
         }
     }
 }

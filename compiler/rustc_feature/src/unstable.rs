@@ -422,6 +422,10 @@ declare_features! (
     (unstable, avx10_target_feature, "1.88.0", Some(138843)),
     /// Target features on bpf.
     (unstable, bpf_target_feature, "1.54.0", Some(150247)),
+    // no-tracking-issue-start
+    /// Allows `#[repr(Btf)]` for BTF relocations.
+    (unstable, btf_relocations, "CURRENT_RUSTC_VERSION", None),
+    // no-tracking-issue-end
     /// Allows using C-variadics.
     (unstable, c_variadic, "1.34.0", Some(44930)),
     /// Allows defining c-variadic functions on targets where this feature has not yet

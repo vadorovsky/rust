@@ -789,8 +789,7 @@ impl<'tcx> ThirBuildCx<'tcx> {
                 line_spans: asm.line_spans,
             })),
 
-            hir::ExprKind::OffsetOf(_, _) => {
-                let offset_of_intrinsic = tcx.require_lang_item(LangItem::OffsetOf, expr.span);
+            hir::ExprKind::OffsetOf(_container, _) => {
                 let mk_u32_kind = |val: u32| ExprKind::NonHirLiteral {
                     lit: ScalarInt::try_from_uint(val, Size::from_bits(32)).unwrap(),
                     user_ty: None,
@@ -799,28 +798,31 @@ impl<'tcx> ThirBuildCx<'tcx> {
                     lit: ScalarInt::try_from_target_usize(val, tcx).unwrap(),
                     user_ty: None,
                 };
-                let mk_call =
-                    |thir: &mut Thir<'tcx>, ty: Ty<'tcx>, variant: VariantIdx, field: FieldIdx| {
-                        let fun_ty =
-                            Ty::new_fn_def(tcx, offset_of_intrinsic, [ty::GenericArg::from(ty)]);
-                        let fun = thir
-                            .exprs
-                            .push(mk_expr(ExprKind::ZstLiteral { user_ty: None }, fun_ty));
-                        let variant =
-                            thir.exprs.push(mk_expr(mk_u32_kind(variant.as_u32()), tcx.types.u32));
-                        let field =
-                            thir.exprs.push(mk_expr(mk_u32_kind(field.as_u32()), tcx.types.u32));
-                        let args = Box::new([variant, field]);
-                        ExprKind::Call {
-                            ty: fun_ty,
-                            fun,
-                            args,
-                            from_hir_call: false,
-                            fn_span: expr.span,
-                        }
-                    };
+                let mk_call = |thir: &mut Thir<'tcx>,
+                               ty: Ty<'tcx>,
+                               variant: VariantIdx,
+                               field: FieldIdx| {
+                    let offset_of_intrinsic = tcx.require_lang_item(LangItem::OffsetOf, expr.span);
+                    let fun_ty =
+                        Ty::new_fn_def(tcx, offset_of_intrinsic, [ty::GenericArg::from(ty)]);
+                    let fun =
+                        thir.exprs.push(mk_expr(ExprKind::ZstLiteral { user_ty: None }, fun_ty));
+                    let variant =
+                        thir.exprs.push(mk_expr(mk_u32_kind(variant.as_u32()), tcx.types.u32));
+                    let field =
+                        thir.exprs.push(mk_expr(mk_u32_kind(field.as_u32()), tcx.types.u32));
+                    let args = Box::new([variant, field]);
+                    ExprKind::Call {
+                        ty: fun_ty,
+                        fun,
+                        args,
+                        from_hir_call: false,
+                        fn_span: expr.span,
+                    }
+                };
 
                 let indices = self.typeck_results.offset_of_data().get(expr.hir_id).unwrap();
+
                 let mut expr = None::<ExprKind<'_>>;
 
                 for &(container, variant, field) in indices.iter() {
@@ -836,6 +838,40 @@ impl<'tcx> ThirBuildCx<'tcx> {
                 }
 
                 expr.unwrap_or_else(|| mk_usize_kind(0))
+            }
+
+            hir::ExprKind::BtfFieldInfo(_container, _, kind) => {
+                let mk_usize_kind = |val: u64| ExprKind::NonHirLiteral {
+                    lit: ScalarInt::try_from_target_usize(val, tcx).unwrap(),
+                    user_ty: None,
+                };
+                let mk_bool_kind =
+                    |val: bool| ExprKind::NonHirLiteral { lit: val.into(), user_ty: None };
+                let indices = self.typeck_results.btf_field_info_data().get(expr.hir_id).unwrap();
+                let Some(&(carrier_ty, _, _)) = indices.first() else {
+                    return match kind {
+                        hir::BtfFieldInfoKind::Exists => {
+                            mk_expr(mk_bool_kind(false), tcx.types.bool)
+                        }
+                        hir::BtfFieldInfoKind::ByteOffset | hir::BtfFieldInfoKind::ByteSize => {
+                            mk_expr(mk_usize_kind(0), tcx.types.usize)
+                        }
+                    };
+                };
+                let kind = match kind {
+                    hir::BtfFieldInfoKind::ByteOffset => mir::BtfFieldInfoKind::ByteOffset,
+                    hir::BtfFieldInfoKind::ByteSize => mir::BtfFieldInfoKind::ByteSize,
+                    hir::BtfFieldInfoKind::Exists => mir::BtfFieldInfoKind::Exists,
+                };
+                let path = indices
+                    .iter()
+                    .map(|&(container_ty, variant, field)| mir::BtfFieldStep {
+                        container_ty,
+                        variant,
+                        field,
+                    })
+                    .collect();
+                ExprKind::BtfFieldInfo { base_ty: carrier_ty, path, kind }
             }
 
             hir::ExprKind::ConstBlock(ref anon_const) => {

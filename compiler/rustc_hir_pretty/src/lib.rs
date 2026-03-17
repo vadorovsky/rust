@@ -1749,6 +1749,27 @@ impl<'a> State<'a> {
 
                 self.word(")");
             }
+            hir::ExprKind::BtfFieldInfo(container, fields, kind) => {
+                self.word(match kind {
+                    hir::BtfFieldInfoKind::ByteOffset => "btf::field_byte_offset!(",
+                    hir::BtfFieldInfoKind::ByteSize => "btf::field_byte_size!(",
+                    hir::BtfFieldInfoKind::Exists => "btf::field_exists!(",
+                });
+                self.print_type(container);
+                self.word(",");
+                self.space();
+
+                if let Some((&first, rest)) = fields.split_first() {
+                    self.print_ident(first);
+
+                    for &field in rest {
+                        self.word(".");
+                        self.print_ident(field);
+                    }
+                }
+
+                self.word(")");
+            }
             hir::ExprKind::UnsafeBinderCast(kind, expr, ty) => {
                 match kind {
                     ast::UnsafeBinderCastKind::Wrap => self.word("wrap_binder!("),
