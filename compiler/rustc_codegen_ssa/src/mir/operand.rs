@@ -100,7 +100,7 @@ impl<V: CodegenObject> OperandValue<V> {
     /// This is the inverse of [`PlaceValue::address`].
     pub(crate) fn deref(self, align: Align) -> PlaceValue<V> {
         let (llval, llextra) = self.pointer_parts();
-        PlaceValue { llval, llextra, align }
+        PlaceValue::new_sized_with_llextra(llval, llextra, align)
     }
 
     pub(crate) fn is_expected_variant_for_type<'tcx, Cx: LayoutTypeCodegenMethods<'tcx>>(

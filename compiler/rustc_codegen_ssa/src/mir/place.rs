@@ -40,6 +40,11 @@ impl<V: CodegenObject> PlaceValue<V> {
         PlaceValue { llval, llextra: None, align }
     }
 
+    /// Constructor for the ordinary case of `Sized` types with `llextra`.
+    pub fn new_sized_with_llextra(llval: V, llextra: Option<V>, align: Align) -> PlaceValue<V> {
+        PlaceValue { llval, llextra, align }
+    }
+
     /// Allocates a stack slot in the function for a value
     /// of the specified size and alignment.
     ///
