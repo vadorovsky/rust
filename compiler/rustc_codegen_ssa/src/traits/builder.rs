@@ -1,11 +1,11 @@
 use std::assert_matches;
 use std::ops::Deref;
 
-use rustc_abi::{Align, Scalar, Size, WrappingRange};
+use rustc_abi::{Align, FieldIdx, Scalar, Size, VariantIdx, WrappingRange};
 use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrs;
 use rustc_middle::mir;
 use rustc_middle::ty::layout::{FnAbiOf, LayoutOf, TyAndLayout};
-use rustc_middle::ty::{AtomicOrdering, Instance, Ty};
+use rustc_middle::ty::{self, AtomicOrdering, Instance, Ty};
 use rustc_session::config::OptLevel;
 use rustc_span::Span;
 use rustc_target::callconv::FnAbi;
@@ -349,6 +349,17 @@ pub trait BuilderMethods<'a, 'tcx>:
         self.inbounds_gep(self.cx().type_i8(), ptr, &[offset])
     }
 
+    fn btf_field_byte_offset(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        variant: VariantIdx,
+        field: FieldIdx,
+    ) -> Self::Value {
+        let layout = self.layout_of(base_ty);
+        let cx = ty::layout::LayoutCx::new(self.tcx(), self.typing_env());
+        let layout = layout.for_variant(&cx, variant);
+        self.const_usize(layout.fields.offset(field.index()).bytes())
+    }
     fn btf_preserve_array_access_index(
         &mut self,
         _base_ty: Ty<'tcx>,

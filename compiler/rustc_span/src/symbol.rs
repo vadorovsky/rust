@@ -537,6 +537,7 @@ symbols! {
         bpf_target_feature,
         btf,
         relocatable_types,
+        btf_field_byte_offset,
         braced_empty_structs,
         branch,
         breakpoint,

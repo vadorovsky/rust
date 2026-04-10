@@ -2817,6 +2817,14 @@ pub const fn align_of<T>() -> usize;
 #[lang = "offset_of"]
 pub const fn offset_of<T: PointeeSized>(variant: u32, field: u32) -> usize;
 
+/// Returns the offset of a field as a BTF-relocatable byte offset when supported.
+///
+/// On targets or backends without BTF field relocation support, this may fall back to the
+/// ordinary layout-computed field offset.
+#[rustc_intrinsic]
+#[unstable(feature = "core_intrinsics", issue = "none")]
+pub fn btf_field_byte_offset<T: PointeeSized>(variant: u32, field: u32) -> usize;
+
 /// The offset of a field queried by its field representing type.
 ///
 /// Returns the offset of the field represented by `F`. This function essentially does the same as

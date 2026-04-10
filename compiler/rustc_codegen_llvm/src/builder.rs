@@ -8,7 +8,7 @@ pub(crate) mod gpu_offload;
 
 use libc::{c_char, c_uint};
 use rustc_abi as abi;
-use rustc_abi::{Align, Size, WrappingRange};
+use rustc_abi::{Align, FieldIdx, Size, VariantIdx, WrappingRange};
 use rustc_codegen_ssa::MemFlags;
 use rustc_codegen_ssa::common::{IntPredicate, RealPredicate, SynchronizationScope, TypeKind};
 use rustc_codegen_ssa::mir::operand::{OperandRef, OperandValue};
@@ -16,6 +16,7 @@ use rustc_codegen_ssa::mir::place::PlaceRef;
 use rustc_codegen_ssa::traits::*;
 use rustc_data_structures::small_c_str::SmallCStr;
 use rustc_hir::def_id::DefId;
+use rustc_middle::bug;
 use rustc_middle::middle::codegen_fn_attrs::{CodegenFnAttrs, TargetFeature, TargetFeatureKind};
 use rustc_middle::ty::layout::{
     FnAbiError, FnAbiOfHelpers, FnAbiRequest, HasTypingEnv, LayoutError, LayoutOfHelpers,
@@ -1011,6 +1012,71 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
                 Some(dbg_info),
             )
         }
+    }
+
+    fn btf_field_byte_offset(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        variant: VariantIdx,
+        field: FieldIdx,
+    ) -> &'ll Value {
+        fn llvm_struct_field_index<'ll, 'tcx>(
+            bx: &Builder<'_, 'll, 'tcx>,
+            layout: TyAndLayout<'tcx>,
+            field_index: usize,
+        ) -> usize {
+            let mut llvm_index = 0;
+            let mut offset = Size::ZERO;
+
+            for i in layout.fields.index_by_increasing_offset() {
+                let target_offset = layout.fields.offset(i as usize);
+                if target_offset != offset {
+                    llvm_index += 1;
+                }
+
+                if i as usize == field_index {
+                    return llvm_index;
+                }
+
+                let field = layout.field(bx.cx(), i);
+                llvm_index += 1;
+                offset = target_offset + field.size;
+            }
+
+            bug!("field index {field_index} not found in layout {layout:#?}")
+        }
+
+        let layout = self.layout_of(base_ty);
+        let cx = ty::layout::LayoutCx::new(self.tcx, self.typing_env());
+        let layout = layout.for_variant(&cx, variant);
+        let offset = layout.fields.offset(field.index()).bytes();
+
+        if self.cx.tcx.sess.target.arch != Arch::Bpf || self.cx.dbg_cx.is_none() {
+            return self.const_usize(offset);
+        }
+
+        let base = self.const_null(self.type_ptr());
+        let field_ptr = match base_ty.kind() {
+            ty::Adt(adt, _) if adt.is_union() || adt.is_enum() => return self.const_usize(offset),
+            ty::Adt(..) | ty::Tuple(..) => {
+                let llvm_index = llvm_struct_field_index(self, layout, field.index());
+                self.btf_preserve_struct_access_index(
+                    base_ty,
+                    self.cx().backend_type(layout),
+                    base,
+                    llvm_index as u64,
+                    field.index() as u64,
+                )
+            }
+            _ => return self.const_usize(offset),
+        };
+
+        let field_info = self.call_intrinsic(
+            "llvm.bpf.preserve.field.info",
+            &[self.val_ty(field_ptr)],
+            &[field_ptr, self.const_u64(0)],
+        );
+        self.zext(field_info, self.type_isize())
     }
 
     /* Casts */

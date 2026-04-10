@@ -1,4 +1,4 @@
-use rustc_abi::{Align, WrappingRange};
+use rustc_abi::{Align, FieldIdx, VariantIdx, WrappingRange};
 use rustc_middle::mir::SourceInfo;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_middle::{bug, span_bug};
@@ -577,6 +577,21 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                     let d = bx.unchecked_usub(a, b);
                     bx.exactudiv(d, pointee_size)
                 }
+            }
+
+            sym::btf_field_byte_offset => {
+                let tp_ty = fn_args.type_at(0);
+                let Some(variant) = bx.const_to_opt_uint(args[0].immediate()) else {
+                    span_bug!(span, "`btf_field_byte_offset` variant must be a constant");
+                };
+                let Some(field) = bx.const_to_opt_uint(args[1].immediate()) else {
+                    span_bug!(span, "`btf_field_byte_offset` field must be a constant");
+                };
+                bx.btf_field_byte_offset(
+                    tp_ty,
+                    VariantIdx::from_u32(variant as u32),
+                    FieldIdx::from_usize(field as usize),
+                )
             }
 
             sym::cold_path => {
