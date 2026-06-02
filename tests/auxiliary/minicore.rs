@@ -486,3 +486,25 @@ macro_rules! impl_partial_eq {
 }
 
 impl_partial_eq!(i8, u8, i32, u32, i64, u64, isize, usize);
+
+#[lang = "index"]
+pub trait Index<Idx: ?Sized> {
+    type Output: ?Sized;
+    fn index(&self, index: Idx) -> &Self::Output;
+}
+
+impl<T, const N: usize> Index<usize> for [T; N] {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self[index]
+    }
+}
+
+impl<T> Index<usize> for [T] {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self[index]
+    }
+}
