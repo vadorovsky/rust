@@ -375,6 +375,7 @@ pub mod ptr {
     }
 }
 
+#[expect(non_camel_case_types, reason = "equivalent of a C type")]
 #[lang = "c_void"]
 #[repr(u8)]
 pub enum c_void {
