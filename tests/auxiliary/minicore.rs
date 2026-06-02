@@ -462,3 +462,27 @@ struct PanicLocation {
     line: u32,
     column: u32,
 }
+
+#[lang = "eq"]
+pub trait PartialEq<Rhs: ?Sized = Self> {
+    fn eq(&self, other: &Rhs) -> bool;
+    fn ne(&self, other: &Rhs) -> bool;
+}
+
+macro_rules! impl_partial_eq {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl PartialEq for $ty {
+                fn eq(&self, other: &$ty) -> bool {
+                    (*self) == (*other)
+                }
+
+                fn ne(&self, other: &$ty) -> bool {
+                    (*self) != (*other)
+                }
+            }
+        )*
+    };
+}
+
+impl_partial_eq!(i8, u8, i32, u32, i64, u64, isize, usize);
