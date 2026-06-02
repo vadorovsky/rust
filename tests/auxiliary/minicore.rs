@@ -243,16 +243,24 @@ macro_rules! compile_error {
 pub trait Add<Rhs = Self> {
     type Output;
 
-    fn add(self, _: Rhs) -> Self::Output;
+    fn add(self, rhs: Rhs) -> Self::Output;
 }
 
-impl Add<isize> for isize {
-    type Output = isize;
+macro_rules! impl_add {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl Add for $ty {
+                type Output = Self;
 
-    fn add(self, other: isize) -> isize {
-        7 // avoid needing to add all of the overflow handling and panic language items
-    }
+                fn add(self, rhs: Self) -> Self {
+                    self + rhs
+                }
+            }
+        )*
+    };
 }
+
+impl_add!(i8, u8, i32, u32, i64, u64, isize, usize);
 
 #[lang = "neg"]
 pub trait Neg {
