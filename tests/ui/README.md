@@ -186,6 +186,11 @@ See:
 - [`std::box::Boxed`](https://doc.rust-lang.org/std/boxed/struct.Box.html)
 - [Tracking issue for `box_patterns` feature #29641](https://github.com/rust-lang/rust/issues/29641)
 
+## `tests/ui/btf/`: BPF Type Format Relocations
+
+Tests for the experimental `btf_relocations` feature, including attribute placement, field-access
+restrictions, and target and debug-info requirements.
+
 ## `tests/ui/builtin-superkinds/`: Built-in Trait Hierarchy Tests
 
 Tests for built-in trait hierarchy (Send, Sync, Sized, etc.) and their supertrait relationships. E.g. auto traits and marker trait constraints.

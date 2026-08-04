@@ -1,0 +1,14 @@
+error: BTF field relocation queries are only supported for BPF targets
+  --> $DIR/unsupported-target.rs:9:28
+   |
+LL |     let _: Option<usize> = core::btf::field_byte_offset!(KernelType, field);
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: BTF field relocation queries are only supported for BPF targets
+  --> $DIR/unsupported-target.rs:11:28
+   |
+LL |     let _: Option<usize> = core::btf::field_byte_size!(KernelType, field);
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 2 previous errors
+

@@ -1,0 +1,9 @@
+error: BTF field relocation queries require debug info
+  --> $DIR/missing-debuginfo.rs:15:5
+   |
+LL |     core::btf::field_byte_offset!(KernelType, field)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: compile with `-C debuginfo=2`
+
+error: aborting due to 1 previous error
