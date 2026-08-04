@@ -279,6 +279,10 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
                 self.write_immediate(*discr, &dest)?;
             }
 
+            BtfFieldInfo { .. } => {
+                throw_unsup_format!("BTF field relocation queries cannot be interpreted");
+            }
+
             WrapUnsafeBinder(ref op, _ty) => {
                 // Constructing an unsafe binder acts like a transmute
                 // since the operand's layout does not change.

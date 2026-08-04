@@ -2041,6 +2041,15 @@ impl<'a> Parser<'a> {
     fn parse_expr_builtin(&mut self) -> PResult<'a, Box<Expr>> {
         self.parse_builtin(|this, lo, ident| {
             Ok(match ident.name {
+                sym::btf_field_byte_offset => {
+                    Some(this.parse_expr_btf_field_info(lo, ast::BtfFieldInfoKind::ByteOffset)?)
+                }
+                sym::btf_field_byte_size => {
+                    Some(this.parse_expr_btf_field_info(lo, ast::BtfFieldInfoKind::ByteSize)?)
+                }
+                sym::btf_field_exists => {
+                    Some(this.parse_expr_btf_field_info(lo, ast::BtfFieldInfoKind::Exists)?)
+                }
                 sym::offset_of => Some(this.parse_expr_offset_of(lo)?),
                 sym::type_ascribe => Some(this.parse_expr_type_ascribe(lo)?),
                 sym::wrap_binder => {
@@ -2112,6 +2121,37 @@ impl<'a> Parser<'a> {
 
         let span = lo.to(self.token.span);
         Ok(self.mk_expr(span, ExprKind::OffsetOf(container, fields)))
+    }
+
+    /// Built-in syntax used by the BTF field-info macros.
+    pub(crate) fn parse_expr_btf_field_info(
+        &mut self,
+        lo: Span,
+        kind: ast::BtfFieldInfoKind,
+    ) -> PResult<'a, Box<Expr>> {
+        let carrier = self.parse_ty()?;
+        self.expect(exp!(Comma))?;
+
+        let fields = self.parse_floating_field_access()?;
+        let trailing_comma = self.eat_noexpect(&TokenKind::Comma);
+
+        if let Err(mut err) = self.expect_one_of(&[], &[exp!(CloseParen)]) {
+            if trailing_comma {
+                err.note("unexpected third argument to BTF field-info macro");
+            } else {
+                err.note("BTF field-info macros expect dot-separated field names");
+            }
+            err.emit();
+        }
+
+        if self.may_recover() {
+            while !self.token.kind.is_close_delim_or_eof() {
+                self.bump();
+            }
+        }
+
+        let span = lo.to(self.token.span);
+        Ok(self.mk_expr(span, ExprKind::BtfFieldInfo(carrier, fields, kind)))
     }
 
     /// Built-in macro for type ascription expressions.
@@ -4524,6 +4564,7 @@ impl MutVisitor for CondChecker<'_> {
             | ExprKind::Ret(_)
             | ExprKind::InlineAsm(_)
             | ExprKind::OffsetOf(_, _)
+            | ExprKind::BtfFieldInfo(_, _, _)
             | ExprKind::MacCall(_)
             | ExprKind::Struct(_)
             | ExprKind::Repeat(_, _)

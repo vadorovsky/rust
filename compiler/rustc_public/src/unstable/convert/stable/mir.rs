@@ -263,6 +263,7 @@ impl<'tcx> Stable<'tcx> for mir::Rvalue<'tcx> {
                 crate::mir::Rvalue::Aggregate(agg_kind.stable(tables, cx), operands)
             }
             CopyForDeref(place) => crate::mir::Rvalue::CopyForDeref(place.stable(tables, cx)),
+            BtfFieldInfo { .. } => unimplemented!("BTF field-info queries are not exposed"),
             WrapUnsafeBinder(..) => unimplemented!("FIXME(unsafe_binders):"),
         }
     }

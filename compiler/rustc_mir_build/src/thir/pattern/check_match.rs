@@ -356,6 +356,7 @@ impl<'p, 'tcx> MatchVisitor<'p, 'tcx> {
             | Repeat { .. }
             | StaticRef { .. }
             | ThreadLocalRef { .. }
+            | BtfFieldInfo { .. }
             | Tuple { .. }
             | Unary { .. }
             | UpvarRef { .. }

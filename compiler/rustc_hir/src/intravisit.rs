@@ -929,7 +929,8 @@ pub fn walk_expr<'v, V: Visitor<'v>>(visitor: &mut V, expression: &'v Expr<'v>) 
         ExprKind::InlineAsm(ref asm) => {
             try_visit!(visitor.visit_inline_asm(asm, *hir_id));
         }
-        ExprKind::OffsetOf(ref container, ref fields) => {
+        ExprKind::OffsetOf(ref container, ref fields)
+        | ExprKind::BtfFieldInfo(ref container, ref fields, _) => {
             try_visit!(visitor.visit_ty_unambig(container));
             walk_list!(visitor, visit_ident, fields.iter().copied());
         }

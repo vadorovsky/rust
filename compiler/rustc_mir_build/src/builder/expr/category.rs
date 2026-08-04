@@ -69,6 +69,7 @@ impl Category {
             | ExprKind::Repeat { .. }
             | ExprKind::Assign { .. }
             | ExprKind::AssignOp { .. }
+            | ExprKind::BtfFieldInfo { .. }
             // A reborrow expression produces a value represented in MIR as
             // `Rvalue::Reborrow`. Its source may be a place, but the reborrow
             // expression itself does not denote an assignable place.

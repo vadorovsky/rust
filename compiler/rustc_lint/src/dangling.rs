@@ -318,7 +318,10 @@ fn is_temporary_rvalue(expr: &Expr<'_>) -> bool {
         ExprKind::Assign(..) | ExprKind::AssignOp(..) | ExprKind::Yield(..) => false,
 
         // Compiler-magic macros
-        ExprKind::AddrOf(..) | ExprKind::OffsetOf(..) | ExprKind::InlineAsm(..) => false,
+        ExprKind::AddrOf(..)
+        | ExprKind::OffsetOf(..)
+        | ExprKind::BtfFieldInfo(..)
+        | ExprKind::InlineAsm(..) => false,
 
         // We are not interested in these
         ExprKind::Cast(..)

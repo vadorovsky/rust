@@ -1338,6 +1338,22 @@ pub struct ConstOperand<'tcx> {
 /// Computing any rvalue begins by evaluating the places and operands in some order (**Needs
 /// clarification**: Which order?). These are then used to produce a "value" - the same kind of
 /// value that an [`Operand`] produces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TyEncodable, TyDecodable, Hash, StableHash)]
+#[derive(TypeFoldable, TypeVisitable)]
+pub struct BtfFieldStep<'tcx> {
+    pub container_ty: Ty<'tcx>,
+    pub variant: VariantIdx,
+    pub field: FieldIdx,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TyEncodable, TyDecodable, Hash, StableHash)]
+#[derive(TypeFoldable, TypeVisitable)]
+pub enum BtfFieldInfoKind {
+    ByteOffset,
+    ByteSize,
+    Exists,
+}
+
 #[derive(Clone, TyEncodable, TyDecodable, StableHash, PartialEq, TypeFoldable, TypeVisitable)]
 pub enum Rvalue<'tcx> {
     /// Yields the operand unchanged, except for a potential retag.
@@ -1420,6 +1436,9 @@ pub enum Rvalue<'tcx> {
     /// [#91095]: https://github.com/rust-lang/rust/issues/91095
     /// [`discriminant_for_variant`]: crate::ty::Ty::discriminant_for_variant
     Discriminant(Place<'tcx>),
+
+    /// Queries BTF-relocatable metadata for a statically resolved field path.
+    BtfFieldInfo { base_ty: Ty<'tcx>, path: Box<[BtfFieldStep<'tcx>]>, kind: BtfFieldInfoKind },
 
     /// Creates an aggregate value, like a tuple or struct.
     ///

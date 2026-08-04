@@ -296,6 +296,7 @@ impl<'tcx> TyCtxt<'tcx> {
                     | ExprKind::Path(_)
                     | ExprKind::Continue(_)
                     | ExprKind::OffsetOf(_, _)
+                    | ExprKind::BtfFieldInfo(_, _, _)
                     | ExprKind::Err(_) => unreachable!("no sub-expr expected for {:?}", expr.kind),
                 }
             }

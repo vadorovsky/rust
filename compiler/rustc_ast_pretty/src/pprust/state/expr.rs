@@ -812,6 +812,29 @@ impl<'a> State<'a> {
                 self.end(ib);
                 self.pclose();
             }
+            ast::ExprKind::BtfFieldInfo(container, fields, kind) => {
+                self.word("builtin # ");
+                self.word(match kind {
+                    ast::BtfFieldInfoKind::ByteOffset => "btf_field_byte_offset",
+                    ast::BtfFieldInfoKind::ByteSize => "btf_field_byte_size",
+                    ast::BtfFieldInfoKind::Exists => "btf_field_exists",
+                });
+                self.popen();
+                let ib = self.ibox(0);
+                self.print_type(container);
+                self.word(",");
+                self.space();
+
+                if let Some((&first, rest)) = fields.split_first() {
+                    self.print_ident(first);
+                    for &field in rest {
+                        self.word(".");
+                        self.print_ident(field);
+                    }
+                }
+                self.end(ib);
+                self.pclose();
+            }
             ast::ExprKind::MacCall(m) => self.print_mac(m),
             ast::ExprKind::Paren(e) => {
                 self.popen();

@@ -1060,6 +1060,8 @@ macro_rules! common_visitor_and_walkers {
                     visit_visitable!($($mut)? vis, f),
                 ExprKind::OffsetOf(container, fields) =>
                     visit_visitable!($($mut)? vis, container, fields),
+                ExprKind::BtfFieldInfo(container, fields, _) =>
+                    visit_visitable!($($mut)? vis, container, fields),
                 ExprKind::Yield(kind) =>
                     visit_visitable!($($mut)? vis, kind),
                 ExprKind::Try(subexpression) =>

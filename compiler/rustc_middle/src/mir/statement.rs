@@ -800,6 +800,7 @@ impl<'tcx> Rvalue<'tcx> {
             | Rvalue::BinaryOp(_, _)
             | Rvalue::UnaryOp(_, _)
             | Rvalue::Discriminant(_)
+            | Rvalue::BtfFieldInfo { .. }
             | Rvalue::Aggregate(_, _)
             | Rvalue::WrapUnsafeBinder(_, _) => true,
         }
@@ -841,6 +842,10 @@ impl<'tcx> Rvalue<'tcx> {
                 op.ty(tcx, arg_ty)
             }
             Rvalue::Discriminant(ref place) => place.ty(local_decls, tcx).ty.discriminant_ty(tcx),
+            Rvalue::BtfFieldInfo { kind, .. } => match kind {
+                BtfFieldInfoKind::ByteOffset | BtfFieldInfoKind::ByteSize => tcx.types.usize,
+                BtfFieldInfoKind::Exists => tcx.types.bool,
+            },
             Rvalue::Aggregate(ref ak, ref ops) => match **ak {
                 AggregateKind::Array(ty) => Ty::new_array(tcx, ty, ops.len() as u64),
                 AggregateKind::Tuple => {

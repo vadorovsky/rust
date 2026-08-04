@@ -1150,6 +1150,9 @@ impl<'tcx> Debug for Rvalue<'tcx> {
             BinaryOp(ref op, (ref a, ref b)) => write!(fmt, "{op:?}({a:?}, {b:?})"),
             UnaryOp(ref op, ref a) => write!(fmt, "{op:?}({a:?})"),
             Discriminant(ref place) => write!(fmt, "discriminant({place:?})"),
+            BtfFieldInfo { ref base_ty, ref path, kind } => {
+                write!(fmt, "btf_field_info({base_ty:?}, {path:?}, {kind:?})")
+            }
             ThreadLocalRef(did) => ty::tls::with(|tcx| {
                 let muta = tcx.static_mutability(did).unwrap().prefix_str();
                 write!(fmt, "&/*tls*/ {}{}", muta, tcx.def_path_str(did))

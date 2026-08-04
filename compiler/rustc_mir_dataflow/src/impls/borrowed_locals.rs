@@ -93,6 +93,7 @@ where
             | Rvalue::BinaryOp(..)
             | Rvalue::UnaryOp(..)
             | Rvalue::Discriminant(..)
+            | Rvalue::BtfFieldInfo { .. }
             | Rvalue::Aggregate(..)
             | Rvalue::CopyForDeref(..)
             | Rvalue::WrapUnsafeBinder(..) => {}

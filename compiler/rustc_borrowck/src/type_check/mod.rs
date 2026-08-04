@@ -1700,7 +1700,8 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
             | Rvalue::BinaryOp(..)
             | Rvalue::RawPtr(..)
             | Rvalue::ThreadLocalRef(..)
-            | Rvalue::Discriminant(..) => {}
+            | Rvalue::Discriminant(..)
+            | Rvalue::BtfFieldInfo { .. } => {}
         }
     }
 
@@ -2278,6 +2279,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
             | Rvalue::CopyForDeref(..)
             | Rvalue::UnaryOp(..)
             | Rvalue::Discriminant(..)
+            | Rvalue::BtfFieldInfo { .. }
             | Rvalue::WrapUnsafeBinder(..) => None,
 
             Rvalue::Aggregate(aggregate, _) => match **aggregate {

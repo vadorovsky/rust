@@ -449,6 +449,18 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     ),
                     self.arena.alloc_from_iter(fields.iter().map(|&ident| self.lower_ident(ident))),
                 ),
+                ExprKind::BtfFieldInfo(container, fields, kind) => hir::ExprKind::BtfFieldInfo(
+                    self.lower_ty_alloc(
+                        container,
+                        ImplTraitContext::Disallowed(ImplTraitPosition::BtfFieldInfo),
+                    ),
+                    self.arena.alloc_from_iter(fields.iter().map(|&ident| self.lower_ident(ident))),
+                    match kind {
+                        BtfFieldInfoKind::ByteOffset => hir::BtfFieldInfoKind::ByteOffset,
+                        BtfFieldInfoKind::ByteSize => hir::BtfFieldInfoKind::ByteSize,
+                        BtfFieldInfoKind::Exists => hir::BtfFieldInfoKind::Exists,
+                    },
+                ),
                 ExprKind::Struct(se) => {
                     let rest = match se.rest {
                         StructRest::Base(ref e) => hir::StructTailExpr::Base(self.lower_expr(e)),

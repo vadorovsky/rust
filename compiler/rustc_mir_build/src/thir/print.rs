@@ -595,6 +595,13 @@ impl<'a, 'tcx> ThirPrinter<'a, 'tcx> {
                 print_indented!(self, format!("def_id: {:?}", def_id), depth_lvl + 1);
                 print_indented!(self, "}", depth_lvl);
             }
+            BtfFieldInfo { base_ty, path, kind } => {
+                print_indented!(self, "BtfFieldInfo {", depth_lvl);
+                print_indented!(self, format!("base_ty: {:?}", base_ty), depth_lvl + 1);
+                print_indented!(self, format!("path: {:?}", path), depth_lvl + 1);
+                print_indented!(self, format!("kind: {:?}", kind), depth_lvl + 1);
+                print_indented!(self, "}", depth_lvl);
+            }
             Yield { value } => {
                 print_indented!(self, "Yield {", depth_lvl);
                 print_indented!(self, "value:", depth_lvl + 1);

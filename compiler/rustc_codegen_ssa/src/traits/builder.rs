@@ -355,6 +355,17 @@ pub trait BuilderMethods<'a, 'tcx>:
         self.inbounds_gep(self.cx().type_i8(), ptr, &[offset])
     }
 
+    fn btf_field_info(
+        &mut self,
+        _base: Self::Value,
+        _path: &[mir::BtfFieldStep<'tcx>],
+        _kind: u32,
+    ) -> Self::Value {
+        self.tcx()
+            .dcx()
+            .fatal("the selected codegen backend does not support BTF field relocations")
+    }
+
     fn trunc(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
     /// Produces the same value as [`Self::trunc`] (and defaults to that),
     /// but is UB unless the *zero*-extending the result can reproduce `val`.

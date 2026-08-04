@@ -898,6 +898,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             | ExprKind::ConstParam { .. }
             | ExprKind::ThreadLocalRef(_)
             | ExprKind::StaticRef { .. }
+            | ExprKind::BtfFieldInfo { .. }
             | ExprKind::WrapUnsafeBinder { .. } => {
                 debug_assert!(match Category::of(&expr.kind).unwrap() {
                     // should be handled above

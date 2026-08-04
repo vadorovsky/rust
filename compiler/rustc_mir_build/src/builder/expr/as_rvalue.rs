@@ -344,6 +344,9 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                 };
                 block.and(Rvalue::Aggregate(result, operands))
             }
+            ExprKind::BtfFieldInfo { base_ty, ref path, kind } => {
+                block.and(Rvalue::BtfFieldInfo { base_ty, path: path.clone(), kind })
+            }
             ExprKind::Assign { .. } | ExprKind::AssignOp { .. } => {
                 block = this.stmt_expr(block, expr_id, None).into_block();
                 block.and(Rvalue::Use(

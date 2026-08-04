@@ -547,6 +547,12 @@ pub enum ExprKind<'tcx> {
     InlineAsm(Box<InlineAsmExpr<'tcx>>),
     /// An expression taking a reference to a thread local.
     ThreadLocalRef(DefId),
+    /// A BTF-relocatable field metadata query.
+    BtfFieldInfo {
+        base_ty: Ty<'tcx>,
+        path: Box<[mir::BtfFieldStep<'tcx>]>,
+        kind: mir::BtfFieldInfoKind,
+    },
     /// A `yield` expression.
     Yield {
         value: ExprId,

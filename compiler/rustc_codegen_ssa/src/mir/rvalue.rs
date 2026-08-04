@@ -756,6 +756,40 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                 }
             }
 
+            mir::Rvalue::BtfFieldInfo { base_ty, ref path, kind } => {
+                let base_ty = self.monomorphize(base_ty);
+                let path: Vec<_> = path
+                    .iter()
+                    .map(|step| mir::BtfFieldStep {
+                        container_ty: self.monomorphize(step.container_ty),
+                        variant: step.variant,
+                        field: step.field,
+                    })
+                    .collect();
+                debug_assert_eq!(path.first().map(|step| step.container_ty), Some(base_ty));
+
+                let kind_u32 = match kind {
+                    mir::BtfFieldInfoKind::ByteOffset => 0,
+                    mir::BtfFieldInfoKind::ByteSize => 1,
+                    mir::BtfFieldInfoKind::Exists => 2,
+                };
+                let base = bx.const_null(bx.type_ptr());
+                let llval = bx.btf_field_info(base, &path, kind_u32);
+                let (val, ty) = match kind {
+                    mir::BtfFieldInfoKind::ByteOffset | mir::BtfFieldInfoKind::ByteSize => {
+                        (bx.zext(llval, bx.type_isize()), bx.tcx().types.usize)
+                    }
+                    mir::BtfFieldInfoKind::Exists => {
+                        (bx.icmp(IntPredicate::IntNE, llval, bx.const_u32(0)), bx.tcx().types.bool)
+                    }
+                };
+                OperandRef {
+                    val: OperandValue::Immediate(val),
+                    layout: bx.cx().layout_of(ty),
+                    move_annotation: None,
+                }
+            }
+
             mir::Rvalue::ThreadLocalRef(def_id) => {
                 assert!(bx.cx().tcx().is_static(def_id));
                 let layout = bx.layout_of(bx.cx().tcx().static_ptr_ty(def_id, bx.typing_env()));

@@ -77,7 +77,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         wbcx.visit_coroutine_interior();
         wbcx.visit_transmutes();
         wbcx.visit_offloads();
-        wbcx.visit_offset_of_container_types();
+        wbcx.visit_field_path_container_types();
         wbcx.visit_potentially_region_dependent_goals();
 
         let used_trait_imports =
@@ -272,7 +272,9 @@ impl<'cx, 'tcx> Visitor<'tcx> for WritebackCx<'cx, 'tcx> {
                     self.visit_field_id(field.hir_id);
                 }
             }
-            hir::ExprKind::Field(..) | hir::ExprKind::OffsetOf(..) => {
+            hir::ExprKind::Field(..)
+            | hir::ExprKind::OffsetOf(..)
+            | hir::ExprKind::BtfFieldInfo(..) => {
                 self.visit_field_id(e.hir_id);
             }
             _ => {}
@@ -788,7 +790,7 @@ impl<'cx, 'tcx> WritebackCx<'cx, 'tcx> {
         }
     }
 
-    fn visit_offset_of_container_types(&mut self) {
+    fn visit_field_path_container_types(&mut self) {
         let fcx_typeck_results = self.fcx.typeck_results.borrow();
         assert_eq!(fcx_typeck_results.hir_owner, self.typeck_results.hir_owner);
         let common_hir_owner = fcx_typeck_results.hir_owner;
@@ -800,6 +802,16 @@ impl<'cx, 'tcx> WritebackCx<'cx, 'tcx> {
                 .map(|&(ty, variant, field)| (self.resolve(ty, &hir_id), variant, field))
                 .collect();
             self.typeck_results.offset_of_data_mut().insert(hir_id, indices);
+        }
+
+        for (local_id, indices) in fcx_typeck_results.btf_field_info_data().items_in_stable_order()
+        {
+            let hir_id = HirId { owner: common_hir_owner, local_id };
+            let indices = indices
+                .iter()
+                .map(|&(ty, variant, field)| (self.resolve(ty, &hir_id), variant, field))
+                .collect();
+            self.typeck_results.btf_field_info_data_mut().insert(hir_id, indices);
         }
     }
 

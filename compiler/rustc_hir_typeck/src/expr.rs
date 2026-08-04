@@ -5,7 +5,7 @@
 //!
 //! See [`rustc_hir_analysis::check`] for more context on type checking in general.
 
-use rustc_abi::{FIRST_VARIANT, FieldIdx};
+use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_ast as ast;
 use rustc_ast::util::parser::ExprPrecedence;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
@@ -30,10 +30,12 @@ use rustc_middle::ty::adjustment::{Adjust, Adjustment, AllowTwoPhase};
 use rustc_middle::ty::error::{ExpectedFound, TypeError};
 use rustc_middle::ty::{self, AdtKind, GenericArgsRef, Ty, TypeVisitableExt, Unnormalized};
 use rustc_middle::{bug, span_bug};
+use rustc_session::config::DebugInfo;
 use rustc_session::diagnostics::{ExprParenthesesNeeded, feature_err};
 use rustc_span::edit_distance::find_best_match_for_name;
 use rustc_span::hygiene::DesugaringKind;
 use rustc_span::{Ident, Span, Spanned, Symbol, kw, sym};
+use rustc_target::spec::Arch;
 use rustc_trait_selection::infer::InferCtxtExt;
 use rustc_trait_selection::traits::{self, ObligationCauseCode, ObligationCtxt};
 use tracing::{debug, instrument, trace};
@@ -350,6 +352,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
             ExprKind::OffsetOf(container, fields) => {
                 self.check_expr_offset_of(container, fields, expr)
+            }
+            ExprKind::BtfFieldInfo(carrier, fields, kind) => {
+                self.check_expr_btf_field_info(carrier, fields, kind, expr)
             }
             ExprKind::Break(destination, ref expr_opt) => {
                 self.check_expr_break(destination, expr_opt.as_deref(), expr)
@@ -3816,6 +3821,58 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         fields: &[Ident],
         expr: &'tcx hir::Expr<'tcx>,
     ) -> Ty<'tcx> {
+        let field_indices = self.resolve_field_path(container, fields, false, expr);
+        self.typeck_results.borrow_mut().offset_of_data_mut().insert(expr.hir_id, field_indices);
+        self.tcx.types.usize
+    }
+
+    fn check_expr_btf_field_info(
+        &self,
+        carrier: &'tcx hir::Ty<'tcx>,
+        fields: &[Ident],
+        kind: hir::BtfFieldInfoKind,
+        expr: &'tcx hir::Expr<'tcx>,
+    ) -> Ty<'tcx> {
+        // Every public query first emits the internal existence query. Diagnose target/codegen
+        // incompatibilities there so a single macro invocation produces a single error.
+        if kind == hir::BtfFieldInfoKind::Exists {
+            if self.tcx.sess.target.arch != Arch::Bpf {
+                self.dcx()
+                    .struct_span_err(
+                        expr.span,
+                        "BTF field relocation queries are only supported for BPF targets",
+                    )
+                    .emit();
+            } else if self.tcx.sess.opts.debuginfo == DebugInfo::None {
+                let mut err = self
+                    .dcx()
+                    .struct_span_err(expr.span, "BTF field relocation queries require debug info");
+                err.help("compile with `-C debuginfo=2`");
+                err.emit();
+            }
+        }
+
+        let field_indices = self.resolve_field_path(carrier, fields, true, expr);
+        self.typeck_results
+            .borrow_mut()
+            .btf_field_info_data_mut()
+            .insert(expr.hir_id, field_indices);
+
+        match kind {
+            hir::BtfFieldInfoKind::Exists => self.tcx.types.bool,
+            hir::BtfFieldInfoKind::ByteOffset | hir::BtfFieldInfoKind::ByteSize => {
+                self.tcx.types.usize
+            }
+        }
+    }
+
+    fn resolve_field_path(
+        &self,
+        container: &'tcx hir::Ty<'tcx>,
+        fields: &[Ident],
+        allow_btf_relocatable: bool,
+        expr: &'tcx hir::Expr<'tcx>,
+    ) -> Vec<(Ty<'tcx>, VariantIdx, FieldIdx)> {
         let mut current_container = self.lower_ty(container).normalized;
         let mut field_indices = Vec::with_capacity(fields.len());
         let mut fields = fields.into_iter();
@@ -3912,7 +3969,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     continue;
                 }
                 ty::Adt(container_def, args) => {
-                    if find_attr!(self.tcx, container_def.did(), BtfRelocatable(..)) {
+                    if find_attr!(self.tcx, container_def.did(), BtfRelocatable(..))
+                        && !allow_btf_relocatable
+                    {
                         let mut err = self.dcx().struct_span_err(
                             expr.span,
                             "cannot use `offset_of!` with a `#[btf_relocatable]` type",
@@ -3990,8 +4049,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             break;
         }
 
-        self.typeck_results.borrow_mut().offset_of_data_mut().insert(expr.hir_id, field_indices);
-
-        self.tcx.types.usize
+        field_indices
     }
 }

@@ -232,6 +232,8 @@ where
 
         Rvalue::CopyForDeref(place) => in_place::<Q, _>(cx, in_local, place.as_ref()),
 
+        Rvalue::BtfFieldInfo { .. } => false,
+
         Rvalue::Use(operand, _)
         | Rvalue::Repeat(operand, _)
         | Rvalue::UnaryOp(_, operand)

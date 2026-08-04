@@ -1608,6 +1608,7 @@ impl Expr {
             | ExprKind::Match(..)
             | ExprKind::MethodCall(..)
             | ExprKind::OffsetOf(..)
+            | ExprKind::BtfFieldInfo(..)
             | ExprKind::Paren(..)
             | ExprKind::Path(..)
             | ExprKind::Repeat(..)
@@ -1741,6 +1742,13 @@ pub struct StructExpr {
     pub rest: StructRest,
 }
 
+#[derive(Copy, Clone, Encodable, Decodable, Debug)]
+pub enum BtfFieldInfoKind {
+    ByteOffset,
+    ByteSize,
+    Exists,
+}
+
 // Adding a new variant? Please update `test_expr` in `tests/ui/macros/stringify.rs`.
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub enum ExprKind {
@@ -1866,6 +1874,11 @@ pub enum ExprKind {
     /// Usually not written directly in user code but
     /// indirectly via the macro `core::mem::offset_of!(...)`.
     OffsetOf(Box<Ty>, ThinVec<Ident>),
+
+    /// A BTF field metadata query (e.g. `builtin # btf_field_byte_offset(Struct, field)`).
+    ///
+    /// Usually produced by one of the macros in `core::btf` rather than written directly.
+    BtfFieldInfo(Box<Ty>, ThinVec<Ident>, BtfFieldInfoKind),
 
     /// A macro invocation; pre-expansion.
     MacCall(Box<MacCall>),

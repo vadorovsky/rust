@@ -1443,6 +1443,12 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
             | Rvalue::RawPtr(_, _)
             | Rvalue::Discriminant(_) => {}
 
+            Rvalue::BtfFieldInfo { path, .. } => {
+                if path.is_empty() {
+                    self.fail(location, "BTF field-info path must not be empty");
+                }
+            }
+
             Rvalue::WrapUnsafeBinder(op, ty) => {
                 let unwrapped_ty = op.ty(self.body, self.tcx);
                 let ty::UnsafeBinder(binder_ty) = *ty.kind() else {

@@ -447,6 +447,8 @@ impl<'tcx> Validator<'_, 'tcx> {
 
             Rvalue::ThreadLocalRef(_) => return Err(Unpromotable),
 
+            Rvalue::BtfFieldInfo { .. } => return Err(Unpromotable),
+
             // ptr-to-int casts are not possible in consts and thus not promotable
             Rvalue::Cast(CastKind::PointerExposeProvenance, _, _) => return Err(Unpromotable),
 

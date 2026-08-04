@@ -575,6 +575,15 @@ impl<'tcx> Visitor<'tcx> for Checker<'_, 'tcx> {
             | Rvalue::Repeat(..)
             | Rvalue::Discriminant(..) => {}
 
+            Rvalue::BtfFieldInfo { kind, .. } => {
+                let name = match kind {
+                    BtfFieldInfoKind::ByteOffset => sym::btf_field_byte_offset,
+                    BtfFieldInfoKind::ByteSize => sym::btf_field_byte_size,
+                    BtfFieldInfoKind::Exists => sym::btf_field_exists,
+                };
+                self.check_op(ops::IntrinsicNonConst { name });
+            }
+
             Rvalue::Aggregate(kind, ..) => {
                 if let AggregateKind::Coroutine(def_id, ..) = kind.as_ref()
                     && let Some(coroutine_kind) = self.tcx.coroutine_kind(*def_id)
