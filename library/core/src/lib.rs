@@ -292,6 +292,8 @@ pub mod asserting;
 pub mod async_iter;
 #[unstable(feature = "bstr", issue = "134915")]
 pub mod bstr;
+#[unstable(feature = "btf_relocations", issue = "none")]
+pub mod btf;
 pub mod cell;
 pub mod char;
 pub mod ffi;
