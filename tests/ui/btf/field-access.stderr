@@ -1,0 +1,42 @@
+error: cannot access fields of a `#[btf_relocatable]` type directly
+  --> $DIR/field-access.rs:21:5
+   |
+LL |     outer.inner.value
+   |     ^^^^^^-----
+   |           |
+   |           direct field access is forbidden for BTF-relocatable types
+   |
+   = note: use a BTF field-info macro and pointer arithmetic instead
+
+error: cannot access fields of a `#[btf_relocatable]` type directly
+  --> $DIR/field-access.rs:26:5
+   |
+LL |     wrapper.inner.value
+   |     ^^^^^^^^^^^^^^-----
+   |                   |
+   |                   direct field access is forbidden for BTF-relocatable types
+   |
+   = note: use a BTF field-info macro and pointer arithmetic instead
+
+error: cannot use `offset_of!` with a `#[btf_relocatable]` type
+  --> $DIR/field-access.rs:31:5
+   |
+LL |     core::mem::offset_of!(Outer, inner.value)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-----^^^^^^^
+   |                                  |
+   |                                  this field requires BTF relocation
+   |
+   = note: use `core::btf::field_byte_offset!` instead
+
+error: cannot use `offset_of!` with a `#[btf_relocatable]` type
+  --> $DIR/field-access.rs:36:5
+   |
+LL |     core::mem::offset_of!(Wrapper, inner.value)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-----^
+   |                                          |
+   |                                          this field requires BTF relocation
+   |
+   = note: use `core::btf::field_byte_offset!` instead
+
+error: aborting due to 4 previous errors
+

@@ -2780,6 +2780,19 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     );
 
                     if let Some((idx, field)) = self.find_adt_field(*base_def, ident) {
+                        if find_attr!(self.tcx, base_def.did(), BtfRelocatable(..)) {
+                            let mut err = self.dcx().struct_span_err(
+                                expr.span,
+                                "cannot access fields of a `#[btf_relocatable]` type directly",
+                            );
+                            err.span_label(
+                                ident.span,
+                                "direct field access is forbidden for BTF-relocatable types",
+                            );
+                            err.note("use a BTF field-info macro and pointer arithmetic instead");
+                            return Ty::new_error(self.tcx, err.emit());
+                        }
+
                         self.write_field_index(expr.hir_id, idx);
 
                         let adjustments = self.adjust_steps(&autoderef);
@@ -3899,6 +3912,17 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     continue;
                 }
                 ty::Adt(container_def, args) => {
+                    if find_attr!(self.tcx, container_def.did(), BtfRelocatable(..)) {
+                        let mut err = self.dcx().struct_span_err(
+                            expr.span,
+                            "cannot use `offset_of!` with a `#[btf_relocatable]` type",
+                        );
+                        err.span_label(field.span, "this field requires BTF relocation");
+                        err.note("use `core::btf::field_byte_offset!` instead");
+                        err.emit();
+                        break;
+                    }
+
                     let (ident, def_scope) = self.tcx.adjust_ident_and_get_scope(
                         field,
                         container_def.did(),

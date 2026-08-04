@@ -1,0 +1,22 @@
+error: cannot access fields of a `#[btf_relocatable]` type directly
+  --> $DIR/cross-crate-field-access.rs:10:5
+   |
+LL |     value.field
+   |     ^^^^^^-----
+   |           |
+   |           direct field access is forbidden for BTF-relocatable types
+   |
+   = note: use a BTF field-info macro and pointer arithmetic instead
+
+error: cannot use `offset_of!` with a `#[btf_relocatable]` type
+  --> $DIR/cross-crate-field-access.rs:15:5
+   |
+LL |     core::mem::offset_of!(KernelType, field)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-----^
+   |                                       |
+   |                                       this field requires BTF relocation
+   |
+   = note: use `core::btf::field_byte_offset!` instead
+
+error: aborting due to 2 previous errors
+
