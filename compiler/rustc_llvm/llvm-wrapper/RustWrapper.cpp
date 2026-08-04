@@ -1513,6 +1513,21 @@ extern "C" LLVMValueRef LLVMRustBuildMemSet(LLVMBuilderRef B, LLVMValueRef Dst,
                                       MaybeAlign(DstAlign), IsVolatile));
 }
 
+extern "C" LLVMValueRef LLVMRustBuildPreserveUnionAccessIndex(
+    LLVMBuilderRef B, LLVMValueRef Base, unsigned FieldIndex,
+    LLVMMetadataRef DbgInfo) {
+  return wrap(unwrap(B)->CreatePreserveUnionAccessIndex(
+      unwrap(Base), FieldIndex, unwrapDI<MDNode>(DbgInfo)));
+}
+
+extern "C" LLVMValueRef LLVMRustBuildPreserveStructAccessIndex(
+    LLVMBuilderRef B, LLVMTypeRef ElTy, LLVMValueRef Base, unsigned Index,
+    unsigned FieldIndex, LLVMMetadataRef DbgInfo) {
+  return wrap(unwrap(B)->CreatePreserveStructAccessIndex(
+      unwrap(ElTy), unwrap(Base), Index, FieldIndex,
+      unwrapDI<MDNode>(DbgInfo)));
+}
+
 extern "C" void LLVMRustPositionBuilderPastAllocas(LLVMBuilderRef B,
                                                    LLVMValueRef Fn) {
   Function *F = unwrap<Function>(Fn);

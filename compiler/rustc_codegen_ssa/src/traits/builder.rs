@@ -366,6 +366,30 @@ pub trait BuilderMethods<'a, 'tcx>:
             .fatal("the selected codegen backend does not support BTF field relocations")
     }
 
+    fn btf_preserve_struct_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        _ty: Self::Type,
+        _ptr: Self::Value,
+        _gep_index: u64,
+        _field_index: u64,
+    ) -> Self::Value {
+        self.tcx()
+            .dcx()
+            .fatal("the selected codegen backend does not support BTF field relocations")
+    }
+
+    fn btf_preserve_union_access_index(
+        &mut self,
+        _base_ty: Ty<'tcx>,
+        _ptr: Self::Value,
+        _field_index: u64,
+    ) -> Self::Value {
+        self.tcx()
+            .dcx()
+            .fatal("the selected codegen backend does not support BTF field relocations")
+    }
+
     fn trunc(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
     /// Produces the same value as [`Self::trunc`] (and defaults to that),
     /// but is UB unless the *zero*-extending the result can reproduce `val`.

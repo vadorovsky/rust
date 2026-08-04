@@ -22,6 +22,7 @@ use rustc_middle::ty::layout::{
     TyAndLayout,
 };
 use rustc_middle::ty::{self, Instance, Ty, TyCtxt};
+use rustc_middle::{bug, mir};
 use rustc_sanitizers::{cfi, kcfi};
 use rustc_session::config::OptLevel;
 use rustc_span::Span;
@@ -34,6 +35,7 @@ use crate::abi::FnAbiLlvmExt;
 use crate::attributes;
 use crate::common::Funclet;
 use crate::context::{CodegenCx, FullCx, GenericCx, SCx};
+use crate::debuginfo::metadata::type_di_node;
 use crate::llvm::{
     self, AtomicOrdering, AtomicRmwBinOp, BasicBlock, FromGeneric, GEPNoWrapFlags, Metadata, TRUE,
     ToLlvmBool, Type, Value,
@@ -993,6 +995,122 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
                 GEPNoWrapFlags::InBounds | GEPNoWrapFlags::NUW,
             )
         }
+    }
+
+    /* BTF relocations */
+
+    fn btf_preserve_struct_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ty: &'ll Type,
+        ptr: &'ll Value,
+        gep_index: u64,
+        field_index: u64,
+    ) -> &'ll Value {
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveStructAccessIndex(
+                self.llbuilder,
+                ty,
+                ptr,
+                gep_index as c_uint,
+                field_index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_preserve_union_access_index(
+        &mut self,
+        base_ty: Ty<'tcx>,
+        ptr: &'ll Value,
+        field_index: u64,
+    ) -> &'ll Value {
+        let dbg_info: &'ll Metadata = type_di_node(self.cx, base_ty);
+        unsafe {
+            llvm::LLVMRustBuildPreserveUnionAccessIndex(
+                self.llbuilder,
+                ptr,
+                field_index as c_uint,
+                Some(dbg_info),
+            )
+        }
+    }
+
+    fn btf_field_info(
+        &mut self,
+        base: &'ll Value,
+        path: &[mir::BtfFieldStep<'tcx>],
+        kind: u32,
+    ) -> &'ll Value {
+        fn llvm_struct_field_index<'ll, 'tcx>(
+            bx: &Builder<'_, 'll, 'tcx>,
+            layout: TyAndLayout<'tcx>,
+            field_index: usize,
+        ) -> usize {
+            let mut llvm_index = 0;
+            let mut offset = Size::ZERO;
+
+            for i in layout.fields.index_by_increasing_offset() {
+                let target_offset = layout.fields.offset(i as usize);
+                if target_offset != offset {
+                    llvm_index += 1;
+                }
+                if i as usize == field_index {
+                    return llvm_index;
+                }
+
+                let field = layout.field(bx.cx(), i);
+                llvm_index += 1;
+                offset = target_offset + field.size;
+            }
+
+            bug!("field index {field_index} not found in layout {layout:#?}")
+        }
+
+        if self.cx.tcx.sess.target.arch != Arch::Bpf {
+            self.cx.tcx.dcx().span_fatal(
+                self.span,
+                "BTF field relocation queries are only supported for BPF targets",
+            );
+        }
+        if self.cx.dbg_cx.is_none() {
+            self.cx
+                .tcx
+                .dcx()
+                .span_fatal(self.span, "BTF field relocation queries require `-C debuginfo=2`");
+        }
+
+        let layout_cx = ty::layout::LayoutCx::new(self.tcx, self.typing_env());
+        let mut field_ptr = base;
+        for step in path {
+            let layout = self.layout_of(step.container_ty);
+            let layout = layout.for_variant(&layout_cx, step.variant);
+            field_ptr = match step.container_ty.kind() {
+                ty::Adt(adt, _) if adt.is_union() => self.btf_preserve_union_access_index(
+                    step.container_ty,
+                    field_ptr,
+                    step.field.index() as u64,
+                ),
+                ty::Adt(..) | ty::Tuple(..) => {
+                    let llvm_index = llvm_struct_field_index(self, layout, step.field.index());
+                    self.btf_preserve_struct_access_index(
+                        step.container_ty,
+                        self.cx().backend_type(layout),
+                        field_ptr,
+                        llvm_index as u64,
+                        step.field.index() as u64,
+                    )
+                }
+                _ => bug!("unsupported BTF field-info container: {:?}", step.container_ty),
+            };
+        }
+
+        self.call_intrinsic(
+            "llvm.bpf.preserve.field.info",
+            &[self.val_ty(field_ptr)],
+            &[field_ptr, self.const_u64(kind.into())],
+        )
     }
 
     /* Casts */
