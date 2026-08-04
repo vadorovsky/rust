@@ -1,0 +1,18 @@
+error: the `btf_relocatable` attribute cannot be used on enums
+  --> $DIR/attribute.rs:8:3
+   |
+LL | #[btf_relocatable]
+   |   ^^^^^^^^^^^^^^^
+   |
+   = help: the `btf_relocatable` attribute can be applied to structs and unions
+
+error: the `btf_relocatable` attribute cannot be used on functions
+  --> $DIR/attribute.rs:14:3
+   |
+LL | #[btf_relocatable]
+   |   ^^^^^^^^^^^^^^^
+   |
+   = help: the `btf_relocatable` attribute can only be applied to data types
+
+error: aborting due to 2 previous errors
+

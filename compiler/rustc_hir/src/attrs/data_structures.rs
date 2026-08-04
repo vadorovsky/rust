@@ -1001,6 +1001,9 @@ pub enum AttributeKind {
     /// Represents `#[automatically_derived]`
     AutomaticallyDerived,
 
+    /// Represents `#[btf_relocatable]`.
+    BtfRelocatable(Span),
+
     /// Represents the trace attribute of `#[cfg_attr]`
     CfgAttrTrace(ThinVec<(CfgEntry, Span)>),
 
